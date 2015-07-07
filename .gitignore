@@ -1,0 +1,9 @@
+build/
+dist/
+MANIFEST
+*.egg-info/
+*.exe
+*.zip
+*.msi
+*.pyc
+
