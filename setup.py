@@ -10,10 +10,10 @@ from distutils.core import setup
 setup(
     name='python-cb-integration',
     version=version.__version__,
-    url='http://www.carbonblack.com/',
-    license='Commercial',
+    url='http://www.bit9.com/',
+    license='MIT',
     author='Carbon Black',
-    author_email='support@carbonblack.com',
+    author_email='dev-support@bit9.com',
     description='Carbon Black Integration Library',
     long_description=__doc__,
     packages=['cbint', 'cbint.utils'],
@@ -23,7 +23,7 @@ setup(
     classifiers=[
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
-        'License :: TBD',
+        'License :: MIT',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Topic :: Software Development :: Libraries :: Python Modules'
