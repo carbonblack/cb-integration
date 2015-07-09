@@ -45,11 +45,14 @@ def pid_exists(pid):
 @contextmanager
 def file_lock(lock_file):
     if os.path.exists(lock_file):
-        pid = file(lock_file).read()
-        if pid_exists(pid):
-            print 'Only one instance can run at once. ' \
-                  'Script is locked with %s (pid: %s)' % (lock_file, pid)
-            raise AlreadyRunningError()
+        try:
+            pid = int(file(lock_file).read())
+            if pid_exists(pid):
+                print 'Only one instance can run at once. ' \
+                      'Script is locked with %s (pid: %s)' % (lock_file, pid)
+                raise AlreadyRunningError('PID %s' % pid)
+        except:
+            pass
 
     open(lock_file, 'w').write("%d" % os.getpid())
     try:
@@ -77,7 +80,7 @@ class CbIntegrationBridge(object):
     The run function should return a list of CbReports (from cbfeeds) that will be placed into
     the
 
-    Subclasses should use the self.log attribute to log errors & info messages as necessary.
+    Subclasses should use the self.logger attribute to log errors & info messages as necessary.
     """
 
     WORKING_FILE_ROOT = '/var/run/cb'
@@ -96,19 +99,19 @@ class CbIntegrationBridge(object):
     def _initialize_logging(self):
         logging_file_path = os.path.join(CbIntegrationBridge.LOG_FILE_ROOT, '%s.log' % self.integration_name)
 
-        self.log = logging.getLogger(self.integration_name)
-        self.log.setLevel(logging.INFO)
+        self.logger = logging.getLogger(self.integration_name)
+        self.logger.setLevel(logging.INFO)
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         formatter.converter = time.gmtime
         handler = RotatingFileHandler(logging_file_path, maxBytes=2**20, backupCount=10)
         handler.setFormatter(formatter)
-        self.log.addHandler(handler)
+        self.logger.addHandler(handler)
 
         if self.debug:
-            self.log.setLevel(logging.DEBUG)
+            self.logger.setLevel(logging.DEBUG)
             handler = logging.StreamHandler(sys.stderr)
             handler.setFormatter(formatter)
-            self.log.addHandler(handler)
+            self.logger.addHandler(handler)
 
     def _initialize_feed(self):
         feed = {"name": self.integration_name, "display_name": self.integration_display_name(),
@@ -131,26 +134,26 @@ class CbIntegrationBridge(object):
                 # Create the feed
                 feed = CbFeed(self.feed_metadata, reports)
                 if not feed.validate():
-                    self.log.error("Feed {0:s} did not validate, not updating".format(self.integration_name))
+                    self.logger.error("Feed {0:s} did not validate, not updating".format(self.integration_name))
                     return False
 
                 raw_feed_data = feed.dump()
 
                 with NamedTemporaryFile(dir=self.working_file_root, delete=False) as fp:
                     fp.write(raw_feed_data)
-                    self.log.info("Creating {0:s} feed at {1:s}".format(self.integration_name, self.feed_file_name))
+                    self.logger.info("Creating {0:s} feed at {1:s}".format(self.integration_name, self.feed_file_name))
                     os.rename(fp.name, self.feed_file_name)
 
                 c = connect_local_cbapi()
                 feed_id = c.feed_get_id_by_name(self.integration_name)
                 if not feed_id:
-                    self.log.info("Creating {0:s} feed for the first time".format(self.integration_name))
+                    self.logger.info("Creating {0:s} feed for the first time".format(self.integration_name))
                     c.feed_add_from_url("file://" + self.feed_file_name, True, False, False)
 
                 # force a synchronization
                 c.feed_synchronize(self.integration_name)
         except AlreadyRunningError:
-            self.log.error("{0:s} is already running".format(self.integration_name))
+            self.logger.error("{0:s} is already running".format(self.integration_name))
 
     @staticmethod
     def print_reports(reports):

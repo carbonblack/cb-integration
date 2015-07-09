@@ -5,7 +5,7 @@ import sys
 sys.path.insert(0, "src/")
 
 from cbint import version
-from distutils.core import setup
+from setuptools import setup
 
 setup(
     name='python-cb-integration',
