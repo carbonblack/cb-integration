@@ -14,7 +14,7 @@ from signal import SIGTERM
 import cbint.utils.filesystem
 
 
-class CbIntegrationDaemon:
+class CbIntegrationDaemon(object):
     """
     A generic daemon class.
 
