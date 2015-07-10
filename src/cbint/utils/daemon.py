@@ -22,7 +22,8 @@ class CbIntegrationDaemon(object):
     """
 
     def __init__(self, name, configfile=None, logfile=None, pidfile=None,
-                 stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
+                 stdin='/dev/null', stdout='/dev/null', stderr='/dev/null',
+                 debug=False):
         self.name = name
         self.configfile = configfile
         self.logfile = logfile
@@ -35,12 +36,13 @@ class CbIntegrationDaemon(object):
         self.logger = logging.getLogger()
         self.logger.setLevel(logging.INFO)
 
-        euid = os.geteuid()
-        if euid != 0:
-            sys.stderr.write("%s: must be root to run (try sudo?)\n" % self.name)
-            sys.exit(1)
+        if not debug:
+            euid = os.geteuid()
+            if euid != 0:
+                sys.stderr.write("%s: must be root to run (try sudo?)\n" % self.name)
+                sys.exit(1)
 
-        self.__initialize_common()
+            self.__initialize_common()
 
     def daemonize(self):
         """
