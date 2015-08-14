@@ -74,12 +74,12 @@ def get_mocked_server(binary_directory):
         md5sum = md5sum.lower()
         sample_data = 'PE. This file is a mocked PE binary with md5sum %s' % md5sum
         zipfile_contents = StringIO()
-        zf = zipfile.ZipFile(zipfile_contents, 'a')
+        zf = zipfile.ZipFile(zipfile_contents, 'w', zipfile.ZIP_DEFLATED, False)
         zf.writestr('filedata', sample_data)
         zf.writestr('metadata', open(filepath, 'r').read())
+        zf.close()
 
-        zipfile_contents.seek(0)
-        return Response(response=zipfile_contents.read(), mimetype='application/zip')
+        return Response(response=zipfile_contents.getvalue(), mimetype='application/zip')
 
     return mocked_cb_server
 
