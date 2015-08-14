@@ -56,7 +56,7 @@ def generate_feed(feed_name, summary, tech_data, provider_url, icon_path, displa
     return feed
 
 
-class FeedSyncRunner:
+class FeedSyncRunner(object):
     """
     performs feed synchronization logic
     synchronizes a feed using the provided cb_api reference

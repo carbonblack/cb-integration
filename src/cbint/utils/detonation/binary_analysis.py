@@ -104,12 +104,13 @@ class BinaryAnalysisProvider(object):
 
 
 class BinaryConsumerThread(threading.Thread):
-    def __init__(self, work_queue, cb, provider):
+    def __init__(self, work_queue, cb, provider, dirty_event):
         threading.Thread.__init__(self)
         self.queue = work_queue
         self.done = False
         self.provider = provider
         self.cb = cb
+        self.dirty_event = dirty_event
 
     def stop(self):
         self.done = True
@@ -117,6 +118,7 @@ class BinaryConsumerThread(threading.Thread):
     def save_successful_analysis(self, md5sum, analysis_result):
         self.queue.mark_as_analyzed(md5sum, True, analysis_result.analysis_version, analysis_result.message,
                                     analysis_result.extended_message, score=analysis_result.score)
+        self.dirty_event.set()
 
     def save_unsuccessful_analysis(self, md5sum, e):
         if type(e) == AnalysisTemporaryError:
@@ -127,6 +129,7 @@ class BinaryConsumerThread(threading.Thread):
         else:
             self.queue.mark_as_analyzed(md5sum, False, 0, "%s: %s" % (e.__class__.__name__, e.message),
                                         "%s" % traceback.format_exc())
+        self.dirty_event.set()
 
     def run(self):
         while not self.done:

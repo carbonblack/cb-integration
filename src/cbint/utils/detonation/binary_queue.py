@@ -9,6 +9,12 @@ try:
     import simplejson as json
 except ImportError:
     import json
+import copy
+import logging
+import time
+
+
+log = logging.getLogger(__name__)
 
 
 class SqliteQueue(object):
@@ -171,15 +177,45 @@ class SqliteQueue(object):
 
 class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
+    _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score FROM binary_data WHERE state=100'
 
-    def __init__(self, dbname, port_number):
+    def __init__(self, dbname, port_number, feed_metadata):
         threading.Thread.__init__(self)
         self.daemon = True
         self.dbname = dbname
         self.port_number = port_number
+        self.feed_metadata = feed_metadata
 
         self.app = flask.Flask(__name__, template_folder='templates')
         self.app.add_url_rule("/binaries.html", view_func=self.binary_results, methods=['GET'])
+        self.app.add_url_rule("/feed.json", view_func=self.feed_content, methods=['GET'])
+        self.app.add_url_rule("/", view_func=self.index, methods=['GET'])
+
+    def index(self):
+        return flask.Response("Nothing to see here")
+
+    def feed_content(self):
+        cur = self.conn.cursor()
+        cur.execute(self._get_analyzed_binaries)
+        binaries = cur.fetchall()
+
+        feed_data = copy.deepcopy(self.feed_metadata)
+        feed_data['reports'] = []
+        for binary in binaries:
+            feed_data['reports'].append({
+                'timestamp': int(time.time()), # TODO: fix
+                'id': binary[0],
+                'link': '',              # TODO: fix
+                'title': binary[2],
+                'score': binary[5],
+                'iocs': {                # TODO: merge iocs from the database
+                    'md5': [
+                        binary[0],
+                    ]
+                }
+            })
+
+        return flask.Response(json.dumps(feed_data), mimetype='application/json')
 
     def binary_results(self):
         cur = self.conn.cursor()

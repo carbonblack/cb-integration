@@ -132,17 +132,18 @@ class CbIntegrationDaemon(object):
         """
         Start the daemon
         """
-        # Check for a pidfile to see if the daemon already runs
-        try:
-            pf = file(self.pidfile, 'r')
-            pid = int(pf.read().strip())
-            pf.close()
-        except IOError:
-            pid = None
+        if not self.debug:
+            # Check for a pidfile to see if the daemon already runs
+            try:
+                pf = file(self.pidfile, 'r')
+                pid = int(pf.read().strip())
+                pf.close()
+            except IOError:
+                pid = None
 
-        if pid:
-            sys.stderr.write("%s: pidfile %s already exist. Daemon already running?\n" % (self.name, self.pidfile))
-            sys.exit(1)
+            if pid:
+                sys.stderr.write("%s: pidfile %s already exist. Daemon already running?\n" % (self.name, self.pidfile))
+                sys.exit(1)
 
         self.logger.info("daemon starting...")
 
