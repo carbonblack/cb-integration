@@ -130,7 +130,10 @@ class BinaryConsumerThread(threading.Thread):
 
     def run(self):
         while not self.done:
-            md5sum = self.queue.get()
+            md5sum = self.queue.get(sleep_wait=False)
+            if not md5sum:
+                sleep(.1)
+                continue
 
             try:
                 res = self.provider.check_result_for(md5sum)
