@@ -2,7 +2,8 @@ __author__ = 'jgarman'
 
 from cbint.utils.daemon import CbIntegrationDaemon, ConfigurationError
 from cbint.utils.detonation.binary_queue import SqliteQueue, SqliteFeedServer
-from cbint.utils.detonation.binary_analysis import CbAPIProducerThread, CbStreamingProducerThread, BinaryConsumerThread
+from cbint.utils.detonation.binary_analysis import (CbAPIProducerThread, CbStreamingProducerThread, QuickScanThread,
+                                                    DeepAnalysisThread)
 import cbint.utils.feed
 import cbint.utils.cbserver
 import cbapi
@@ -57,6 +58,14 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.done = False
         self.feed_dirty = Event()
         self.feed_url = None
+
+    @property
+    def num_quick_scan_threads(self):
+        return 1
+
+    @property
+    def num_deep_scan_threads(self):
+        return 5
 
     def get_provider(self):
         raise IntegrationError("Integration did not provide a 'get_provider' function, which is required")
@@ -143,6 +152,7 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def get_or_create_feed(self):
         feed_id = self.cb.feed_get_id_by_name(self.name)
+        self.logger.info("Feed id for %s: %s" % (self.name, feed_id))
         if not feed_id:
             self.logger.info("Creating %s feed for the first time" % self.name)
             # TODO: clarification of feed_host vs listener_address
@@ -156,19 +166,27 @@ class DetonationDaemon(CbIntegrationDaemon):
     def run(self):
         work_queue = self.initialize_queue()
 
+        # Prepare binary analysis ("detonation") provider
         consumer_threads = []
-
         provider = self.get_provider()
-        for i in range(10):
-            consumer_threads.append(BinaryConsumerThread(work_queue, self.cb, provider, dirty_event=self.feed_dirty))
-
-        for t in consumer_threads:
+        for i in range(self.num_quick_scan_threads):
+            t = QuickScanThread(work_queue, self.cb, provider, dirty_event=self.feed_dirty)
+            consumer_threads.append(t)
+            t.start()
+        for i in range(self.num_deep_scan_threads):
+            t = DeepAnalysisThread(work_queue, self.cb, provider, dirty_event=self.feed_dirty)
+            consumer_threads.append(t)
             t.start()
 
+        # Start feed server
         metadata = self.get_metadata()
-
         self.start_feed_server(metadata)
+
+        # Start collecting binaries
         self.start_binary_collectors()
+
+        # Synchronize feed with Carbon Black
+        self.get_or_create_feed()
         if cbint.utils.cbserver.is_server_at_least(self.cb, "4.1"):
             feed_synchronizer = FeedSyncRunner(self.cb, self.name, self.feed_dirty)
             feed_synchronizer.start()

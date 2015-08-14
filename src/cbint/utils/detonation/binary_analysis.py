@@ -6,7 +6,11 @@ from time import sleep
 import json
 from zipfile import ZipFile
 from cStringIO import StringIO
+import time
+import logging
 
+
+log = logging.getLogger(__name__)
 
 class CbAPIProducerThread(threading.Thread):
     def __init__(self, work_queue, cb, name, max_rows=None, sleep_between=60, rate_limiter=0.1, stop_when_done=False):
@@ -129,8 +133,28 @@ class BinaryConsumerThread(threading.Thread):
         else:
             self.queue.mark_as_analyzed(md5sum, False, 0, "%s: %s" % (e.__class__.__name__, e.message),
                                         "%s" % traceback.format_exc())
-        self.dirty_event.set()
 
+
+class QuickScanThread(BinaryConsumerThread):
+    def run(self):
+        while not self.done:
+            md5sum = self.queue.get(sleep_wait=False)
+            if not md5sum:
+                sleep(.1)
+                continue
+
+            try:
+                res = self.provider.check_result_for(md5sum)
+                if type(res) == AnalysisResult:
+                    self.save_successful_analysis(md5sum, res)
+                    continue
+            except Exception as e:
+                self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in check_result_for",
+                                                                               extended_message=traceback.format_exc()))
+                continue
+
+
+class DeepAnalysisThread(BinaryConsumerThread):
     def run(self):
         while not self.done:
             md5sum = self.queue.get(sleep_wait=False)

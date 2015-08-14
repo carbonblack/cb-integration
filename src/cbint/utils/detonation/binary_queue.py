@@ -227,4 +227,4 @@ class SqliteFeedServer(threading.Thread):
         self.conn = sqlite3.Connection(self.dbname, timeout=60)
         self.conn.row_factory = sqlite3.Row
 
-        self.app.run(host='127.0.0.1', port=self.port_number, debug=True, use_reloader=False)
+        self.app.run(host='0.0.0.0', port=self.port_number, debug=True, use_reloader=False)
