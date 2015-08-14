@@ -9,7 +9,7 @@ from cStringIO import StringIO
 
 
 class CbAPIProducerThread(threading.Thread):
-    def __init__(self, work_queue, cb, name, max_rows=None, sleep_between=60, rate_limiter=0.1):
+    def __init__(self, work_queue, cb, name, max_rows=None, sleep_between=60, rate_limiter=0.1, stop_when_done=False):
         threading.Thread.__init__(self)
         self.queue = work_queue
         self.done = False
@@ -18,6 +18,7 @@ class CbAPIProducerThread(threading.Thread):
         self.sleep_between = sleep_between
         self.max_rows = max_rows
         self.rate_limiter = rate_limiter
+        self.stop_when_done = stop_when_done
 
     def stop(self):
         self.done = True
@@ -39,7 +40,10 @@ class CbAPIProducerThread(threading.Thread):
                 if self.max_rows and i > self.max_rows:
                     break
 
-            sleep(self.sleep_between)
+            if self.stop_when_done:
+                self.done = True
+            else:
+                sleep(self.sleep_between)
 
 
 class CbStreamingProducerThread(QueuedCbSubscriber):
@@ -127,7 +131,6 @@ class BinaryConsumerThread(threading.Thread):
     def run(self):
         while not self.done:
             md5sum = self.queue.get()
-            print 'got md5sum %s' % md5sum
 
             try:
                 res = self.provider.check_result_for(md5sum)

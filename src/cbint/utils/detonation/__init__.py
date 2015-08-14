@@ -15,6 +15,7 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.work_queue = None
         self.work_directory = work_directory or os.path.join("usr", "share", "cb", "integrations", "%s" % self.name)
         self.database_file = os.path.join(self.work_directory, "sqlite.db")
+        self._queue_initialized = False
 
     def get_config_string(self, config_key, default_value=None):
         if self.cfg.has_option("bridge", config_key):
@@ -41,8 +42,8 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.check_required_options(['carbonblack_server_url', 'carbonblack_server_token'])
 
         ssl_verify = self.get_config_boolean("carbonblack_server_sslverify", False)
-        server_url = self.cfg.get_option("bridge", "carbonblack_server_url")
-        server_token = self.cfg.get_option("bridge", "carbonblack_server_token")
+        server_url = self.cfg.get("bridge", "carbonblack_server_url")
+        server_token = self.cfg.get("bridge", "carbonblack_server_token")
         try:
             self.cb = cbapi.CbApi(server_url, token=server_token, ssl_verify=ssl_verify)
         except Exception as e:
@@ -52,21 +53,20 @@ class DetonationDaemon(CbIntegrationDaemon):
             self.check_required_options(['carbonblack_streaming_host', 'carbonblack_streaming_username',
                                          'carbonblack_streaming_password'])
 
-            self.streaming_host = self.cfg.get_option('bridge', 'carbonblack_streaming_host')
-            self.streaming_username = self.cfg.get_option('bridge', 'carbonblack_streaming_username')
-            self.streaming_password = self.cfg.get_option('bridge', 'carbonblack_streaming_password')
+            self.streaming_host = self.cfg.get('bridge', 'carbonblack_streaming_host')
+            self.streaming_username = self.cfg.get('bridge', 'carbonblack_streaming_username')
+            self.streaming_password = self.cfg.get('bridge', 'carbonblack_streaming_password')
             self.use_streaming = True
         else:
             self.use_streaming = False
 
     def initialize_queue(self):
-        self.work_queue = SqliteQueue(self.database_file)
-        self.work_queue.reprocess_on_restart()
+        if not self._queue_initialized:
+            self.work_queue = SqliteQueue(self.database_file)
+            self.work_queue.reprocess_on_restart()
 
-        # TODO: check to see if there are existing files that we should import from a previous version of the connector
-
-        self.feed_server = SqliteFeedServer(self.database_file)
-        self.feed_server.start()
+            # TODO: check to see if there are existing files that we should import from a previous version of the connector
+            self._queue_initialized = True
 
         return self.work_queue
 

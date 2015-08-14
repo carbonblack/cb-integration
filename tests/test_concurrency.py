@@ -27,14 +27,12 @@ class ConsumerThread(threading.Thread):
                 done = True
                 break
 
-            print 'got md5sum %s' % md5sum
             # simulate processing
             sleep(random.random() * 0.05)
             if random.random() < 0.1:
                 # we errored out!
                 self.queue.mark_as_analyzed(md5sum, False, 1, "Error", "Longer error message",
                                             retry_at=datetime.datetime.now() + datetime.timedelta(seconds=10))
-                print 'MARKED %s as error condition' % (md5sum,)
                 self.errors.append(md5sum)
             else:
                 self.queue.set_binary_available(md5sum)

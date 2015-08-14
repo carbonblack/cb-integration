@@ -30,11 +30,6 @@ class SqliteQueue(object):
 );
 '''
     _create_metadata = '''CREATE TABLE IF NOT EXISTS feed_data (
-  full_name        TEXT,
-  short_name       TEXT,
-  tech_detail      TEXT,
-  big_icon         TEXT,
-  small_icon       TEXT,
   -- versioning
   database_version INTEGER,
   feed_version     INTEGER,
@@ -49,11 +44,14 @@ class SqliteQueue(object):
             )
     _update_queue = 'UPDATE binary_data SET state=50,last_modified = ? WHERE md5sum = ?'
     _all_analyzed = 'SELECT * FROM binary_data WHERE state = 100'
-    _update_binary_availability = 'UPDATE binary_data SET last_modified = ?,binary_available_since = ? WHERE md5sum = ?'
+    _update_binary_availability = ('UPDATE binary_data SET last_modified = ?,binary_available_since = ?,'
+                                   'next_attempt_at = NULL WHERE md5sum = ?')
     _update_binary_state = ('UPDATE binary_data SET last_modified = ?,next_attempt_at = ?,short_result = ?,'
                             'detailed_result = ?,score = ?,state = ?,analysis_version = ? WHERE md5sum = ?')
     _reprocess_binaries_on_restart = 'UPDATE binary_data SET state = 0 WHERE state = 50'
     _add_iocs = 'UPDATE binary_data SET iocs = ? WHERE md5sum = ?'
+    _set_metadata = 'INSERT INTO feed_data (database_version) VALUES (?)'
+    _count_by_state = 'SELECT COUNT(*) FROM binary_data WHERE state = ?'
 
     _current_db_version = 2
 
@@ -69,11 +67,13 @@ class SqliteQueue(object):
             cur.execute("SELECT database_version FROM feed_data")
             res = cur.fetchone()
             if not res:
-                # we've never used this database before, set the database version and feed information
-                pass
+                # we've never used this database before, set the database version information
+                cur.execute(self._set_metadata, (self._current_db_version,))
             else:
                 (version,) = res
-                # TODO: database migrations
+                if version != self._current_db_version:
+                    # TODO: database migrations
+                    pass
 
     def _get_conn(self):
         id = threading.current_thread().ident
@@ -83,6 +83,14 @@ class SqliteQueue(object):
             self._connection_cache[id].row_factory = sqlite3.Row
         return self._connection_cache[id]
 
+    def number_unanalyzed(self):
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute(self._count_by_state, (0,))
+            (count,) = cur.fetchone()
+
+        return count
+
     def append(self, md5sum, file_available=False):
         # returns True if a new item was created, False otherwise
         now = datetime.datetime.now()
@@ -91,12 +99,14 @@ class SqliteQueue(object):
                 conn.execute(self._append, (md5sum, now, now))
             except sqlite3.IntegrityError:
                 conn.commit() # unlock the database
-                return False
+                created = False
+            else:
+                created = True
 
             if file_available:
                 self.set_binary_available(md5sum, now)
 
-        return True
+        return created
 
     def set_binary_available(self, md5sum, as_of=None):
         now = datetime.datetime.now()
@@ -111,13 +121,13 @@ class SqliteQueue(object):
             conn.execute(self._add_iocs, (ioc_string, md5sum))
 
     def mark_as_analyzed(self, md5sum, succeeded, analysis_version, short_result, long_result, score=0, retry_at=None):
-        print 'marking as analyzed: %s as %s: version %s, results: %s/%s, score: %d. retry? %s' % (
-            md5sum, succeeded, analysis_version, short_result, long_result, score, retry_at
-        )
+        # print 'marking as analyzed: %s as %s: version %s, results: %s/%s, score: %d. retry? %s' % (
+        #     md5sum, succeeded, analysis_version, short_result, long_result, score, retry_at
+        # )
         if not succeeded:
             # mark state as an error state. if we never want to retry, it's permanent.
             if not retry_at:
-                state = 1
+                state = -100
             else:
                 state = 0
         else:
@@ -162,10 +172,11 @@ class SqliteQueue(object):
 class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
 
-    def __init__(self, dbname):
+    def __init__(self, dbname, port_number):
         threading.Thread.__init__(self)
         self.daemon = True
         self.dbname = dbname
+        self.port_number = port_number
 
         self.app = flask.Flask(__name__, template_folder='templates')
         self.app.add_url_rule("/binaries.html", view_func=self.binary_results, methods=['GET'])
@@ -180,4 +191,4 @@ class SqliteFeedServer(threading.Thread):
         self.conn = sqlite3.Connection(self.dbname, timeout=60)
         self.conn.row_factory = sqlite3.Row
 
-        self.app.run(host='127.0.0.1', port=8080, debug=True, use_reloader=False)
+        self.app.run(host='127.0.0.1', port=self.port_number, debug=True, use_reloader=False)

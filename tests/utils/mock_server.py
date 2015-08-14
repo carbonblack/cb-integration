@@ -1,107 +1,92 @@
 import logging
-
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-from threading import Thread, Event
+import os
 
 try:
     import simplejson as json
 except ImportError:
     import json
 
-logging.getLogger("requests").setLevel(logging.WARNING)
+from flask import Flask, request, make_response, Response
+from cStringIO import StringIO
+import zipfile
 
 
-class MockServer(object):
-    def __init__(self, port, handler_class):
-        self.stop_event = Event()
-        self.port = port
-        self.handler_class = handler_class
-        self.server_thread = None
+def get_mocked_server(binary_directory):
+    mocked_cb_server = Flask('cb')
 
-    def start(self):
-        self.server_thread = Thread(target=self._start, args=(self.port, self.handler_class, self.stop_event))
-        self.server_thread.setDaemon(True)
-        self.server_thread.start()
+    files = os.listdir(binary_directory)
 
-    def stop(self):
-        self.stop_event.set()
+    @mocked_cb_server.route('/api/v1/binary', methods=['GET', 'POST'])
+    def binary_search_endpoint():
+        if request.method == 'GET':
+            query_string = request.args.get('q', '')
+            rows = int(request.args.get('rows', 10))
+            start = int(request.args.get('start', 0))
+        elif request.method == 'POST':
+            parsed_data = json.loads(request.data)
+            if 'q' in parsed_data:
+                query_string = parsed_data['q']
+            else:
+                query_string = ''
 
-    @staticmethod
-    def _start(port, handler_class, stop_event):
-        httpd = HTTPServer(('127.0.0.1', port), handler_class)
-        while not stop_event.is_set():
-            try:
-                httpd.handle_request()
-            except Exception, e:
-                print "Server Request Failed: %s" % e
+            if 'rows' in parsed_data:
+                rows = int(parsed_data['rows'])
+            else:
+                rows = 10
+
+            if 'start' in parsed_data:
+                start = int(parsed_data['start'])
+            else:
+                start = 0
+        else:
+            return make_response('Invalid Request', 500)
+
+        return Response(response=json.dumps(binary_search(query_string, rows, start)),
+                        mimetype='application/json')
+
+    def binary_search(q, rows, start):
+        return {
+            'results':
+                [json.load(open(os.path.join(binary_directory, fn), 'r')) for fn in files[start:start+rows]],
+            'terms': '',
+            'total_results': len(files),
+            'start': start,
+            'elapsed': 0.1,
+            'highlights': [],
+            'facets': {}
+        }
+
+    @mocked_cb_server.route('/api/v1/binary/<md5sum>/summary')
+    def get_binary_summary(md5sum):
+        filepath = os.path.join(binary_directory, '%s.json' % md5sum.lower())
+        if not os.path.exists(filepath):
+            return Response("File not found", 404)
+
+        binary_data = open(filepath, 'r').read()
+        return Response(response=binary_data, mimetype='application/json')
+
+    @mocked_cb_server.route('/api/v1/binary/<md5sum>')
+    def get_binary(md5sum):
+        filepath = os.path.join(binary_directory, '%s.json' % md5sum.lower())
+        if not os.path.exists(filepath):
+            return Response("File not found", 404)
+
+        md5sum = md5sum.lower()
+        sample_data = 'PE. This file is a mocked PE binary with md5sum %s' % md5sum
+        zipfile_contents = StringIO()
+        zf = zipfile.ZipFile(zipfile_contents, 'a')
+        zf.writestr('filedata', sample_data)
+        zf.writestr('metadata', open(filepath, 'r').read())
+
+        zipfile_contents.seek(0)
+        return Response(response=zipfile_contents.read(), mimetype='application/zip')
+
+    return mocked_cb_server
 
 
-class MockServerHandler(BaseHTTPRequestHandler):
-    """
-    Base mock server handler class to be overridden for testing purposes
-    Add methods of the form "do_<HTTP_METHOD>(self)" to handle HTTP actions
+if __name__ == '__main__':
+    mydir = os.path.dirname(os.path.abspath(__file__))
+    binaries_dir = os.path.join(mydir, '..', 'data', 'binary_metadata')
 
-        e.g.
-
-        def do_GET(self):
-            try:
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "success"}))
-            except:
-                pass
-
-    """
-    def log_message(self, fmt, *args):
-        """
-        Override to suppress log messages in output
-        """
-        pass
-
-    def finish(self, *args, **kwargs):
-        """
-        Override finish to handle a python bug: http://bugs.python.org/issue14574
-        """
-        try:
-            if not self.wfile.closed:
-                self.wfile.flush()
-                self.wfile.close()
-        except:
-            pass
-        self.rfile.close()
-
-
-def get_carbon_black_handler(root_directory):
-    class SubHandler(MockCarbonBlackServer):
-        requests = []
-        server_root = root_directory
-
-    return SubHandler
-
-
-class MockCarbonBlackServer(MockServerHandler):
-    def do_GET(self):
-        return self.cb_mock_response('GET')
-
-    def do_POST(self):
-        return self.cb_mock_response('POST')
-
-    def cb_mock_response(self, method):
-        self.requests.append((method, self.path))
-        try:
-            if self.path.find("/api/v1/process") >= 0:
-                data_string = self.rfile.read(int(self.headers['Content-Length']))
-                data = json.loads(data_string)
-                start = 0 if "start" not in data else int(data["start"][0])
-                cluster_response = {}
-                cluster_response["status"] = "success"
-                response = json.dumps(cluster_response)
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Content-Length', len(response))
-                self.end_headers()
-                self.wfile.write(response)
-                return
-        except Exception, e:
-            print "POST ERROR::: %s" % e
+    mock_server = get_mocked_server(binaries_dir)
+    mock_server.run('127.0.0.1', 7982, debug=True)
