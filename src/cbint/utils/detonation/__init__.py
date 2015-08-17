@@ -67,6 +67,10 @@ class DetonationDaemon(CbIntegrationDaemon):
     def num_deep_scan_threads(self):
         return 5
 
+    @property
+    def filter_spec(self):
+        return ''
+
     def get_provider(self):
         raise IntegrationError("Integration did not provide a 'get_provider' function, which is required")
 
@@ -138,12 +142,24 @@ class DetonationDaemon(CbIntegrationDaemon):
 
         return self.work_queue
 
-    def start_binary_collectors(self):
-        CbAPIProducerThread(self.work_queue, self.cb, self.name, sleep_between=10).start()                # historical query
-        CbAPIProducerThread(self.work_queue, self.cb, self.name, max_rows=100, sleep_between=10).start()  # constantly up-to-date query
+    def start_binary_collectors(self, filter_spec):
+        collectors = []
+
+        collectors.append(CbAPIProducerThread(self.work_queue, self.cb, self.name,
+                                              sleep_between=10, filter_spec=filter_spec)) # historical query
+        collectors.append(CbAPIProducerThread(self.work_queue, self.cb, self.name,
+                                              max_rows=100, sleep_between=10, filter_spec=filter_spec))
+            # constantly up-to-date query
+
         if self.use_streaming:
-            CbStreamingProducerThread(self.work_queue, self.streaming_host, self.streaming_username,
-                                      self.streaming_password).start()
+            # TODO: need filter_spec for streaming
+            collectors.append(CbStreamingProducerThread(self.work_queue, self.streaming_host, self.streaming_username,
+                                      self.streaming_password))
+
+        for collector in collectors:
+            collector.start()
+
+        return collectors
 
     def start_feed_server(self, feed_metadata):
         self.feed_server = SqliteFeedServer(self.database_file, self.get_config_integer('listener_port', 8080),
@@ -183,10 +199,21 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.start_feed_server(metadata)
 
         # Start collecting binaries
-        self.start_binary_collectors()
+        collectors = self.start_binary_collectors(self.filter_spec)
 
         # Synchronize feed with Carbon Black
         self.get_or_create_feed()
         if cbint.utils.cbserver.is_server_at_least(self.cb, "4.1"):
             feed_synchronizer = FeedSyncRunner(self.cb, self.name, self.feed_dirty)
             feed_synchronizer.start()
+
+        try:
+            while True:
+                sleep(1)
+        except KeyboardInterrupt:
+            print 'stopping...'
+            for t in consumer_threads + collectors:
+                t.stop()
+            for t in consumer_threads + collectors:
+                t.join()
+                print 'stopped %s' % t

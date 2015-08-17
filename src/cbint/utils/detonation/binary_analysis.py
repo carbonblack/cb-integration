@@ -13,7 +13,8 @@ import logging
 log = logging.getLogger(__name__)
 
 class CbAPIProducerThread(threading.Thread):
-    def __init__(self, work_queue, cb, name, max_rows=None, sleep_between=60, rate_limiter=0.1, stop_when_done=False):
+    def __init__(self, work_queue, cb, name, max_rows=None, sleep_between=60, rate_limiter=0.1, stop_when_done=False,
+                 filter_spec=''):
         threading.Thread.__init__(self)
         self.queue = work_queue
         self.done = False
@@ -23,6 +24,7 @@ class CbAPIProducerThread(threading.Thread):
         self.max_rows = max_rows
         self.rate_limiter = rate_limiter
         self.stop_when_done = stop_when_done
+        self.filter_spec = filter_spec
 
     def stop(self):
         self.done = True
@@ -30,14 +32,16 @@ class CbAPIProducerThread(threading.Thread):
     def run(self):
         while not self.done:
             # TODO: retry logic - make sure we don't bomb out if this fails
-            for i,binary in enumerate(self.cb.binary_search_iter('-alliance_score_%s' % (self.feed_name,),
-                                                                 sort="server_added_timestamp desc")):
+            query_string = '-alliance_score_%s %s' % (self.feed_name, self.filter_spec)
+            log.debug("Querying cb for binaries matching '%s'" % query_string)
+            for i,binary in enumerate(self.cb.binary_search_iter(query_string, sort="server_added_timestamp desc")):
                 if self.done:
                     return
 
-                # keep track of server_added_timestamp if we have it, and use that to filter next time
+                # TODO: keep track of server_added_timestamp if we have it, and use that to filter next time
                 if not self.queue.append(binary['md5']):
-                    print 'md5 %s already tracked' % (binary['md5'],)
+                    pass
+                    # print 'md5 %s already tracked' % (binary['md5'],)
 
                 sleep(self.rate_limiter)        # no need to flood the Cb server or ourselves with binaries
 
@@ -64,7 +68,8 @@ class CbStreamingProducerThread(QueuedCbSubscriber):
         msg = json.loads(body)
         print 'got streaming msg: %s' % msg
         if not self.queue.append(msg['md5'], file_available=True):
-            print 'md5 %s already tracked' % (msg['md5'],)
+            pass
+            # print 'md5 %s already tracked' % (msg['md5'],)
 
 
 class AnalysisPermanentError(Exception):
@@ -77,7 +82,12 @@ class AnalysisPermanentError(Exception):
 class AnalysisTemporaryError(Exception):
     def __init__(self, message="", extended_message="", retry_in=60, analysis_version=1):
         super(AnalysisTemporaryError, self).__init__(message)
-        self.retry_in = retry_in
+        try:
+            self.retry_in = int(retry_in)
+        except ValueError:
+            log.warn("programming error: retry_in is not an integer (was %s; message=%s)" % (retry_in, message))
+            self.retry_in = 60
+
         self.extended_message = extended_message
         self.analysis_version = analysis_version
 
@@ -126,8 +136,9 @@ class BinaryConsumerThread(threading.Thread):
 
     def save_unsuccessful_analysis(self, md5sum, e):
         if type(e) == AnalysisTemporaryError:
+            retry_in_seconds = int(e.retry_in)
             self.queue.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message,
-                                        retry_at=datetime.datetime.now()+datetime.timedelta(seconds=e.retry_in))
+                                        retry_at=datetime.datetime.now()+datetime.timedelta(seconds=retry_in_seconds))
         elif type(e) == AnalysisPermanentError:
             self.queue.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message)
         else:
@@ -139,6 +150,17 @@ class BinaryConsumerThread(threading.Thread):
 
 
 class QuickScanThread(BinaryConsumerThread):
+    def quick_scan(self, md5sum):
+        try:
+            res = self.provider.check_result_for(md5sum)
+            if type(res) == AnalysisResult:
+                self.save_successful_analysis(md5sum, res)
+            else:
+                self.save_empty_quick_scan(md5sum)
+        except Exception as e:
+            self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in check_result_for",
+                                                                           extended_message=traceback.format_exc()))
+
     def run(self):
         while not self.done:
             md5sum = self.queue.get(sleep_wait=False, quick_scan=True)
@@ -147,19 +169,54 @@ class QuickScanThread(BinaryConsumerThread):
                 continue
 
             try:
-                res = self.provider.check_result_for(md5sum)
-                if type(res) == AnalysisResult:
-                    self.save_successful_analysis(md5sum, res)
-                    continue
-                else:
-                    self.save_empty_quick_scan(md5sum)
+                self.quick_scan(md5sum)
             except Exception as e:
-                self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in check_result_for",
-                                                                               extended_message=traceback.format_exc()))
-                continue
+                # we should never have an exception at this point.
+                log.error("Error during quick_scan of md5sum %s: %s: %s" % (md5sum, e.__class__.__name__, str(e)))
 
 
 class DeepAnalysisThread(BinaryConsumerThread):
+    def deep_analysis(self, md5sum):
+        try:
+            res = self.provider.check_result_for(md5sum)
+            if type(res) == AnalysisResult:
+                self.save_successful_analysis(md5sum, res)
+                return
+            # intentionally fall through if we return None from check_result_for...
+        except Exception as e:
+            self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in check_result_for",
+                                                                           extended_message=traceback.format_exc()))
+            return
+
+        # we did not get a valid AnalysisResult from check_result_for, let's pull the binary down and scan it.
+
+        try:
+            z = StringIO(self.cb.binary(md5sum))
+        except Exception as e:
+            self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Binary not available in Cb",
+                                                                           retry_in=60))
+            return
+
+        try:
+            zf = ZipFile(z)
+            fp = zf.open('filedata')
+        except Exception as e:
+            self.save_unsuccessful_analysis(md5sum, AnalysisPermanentError(message="Zip file corrupt",
+                                                                           extended_message=traceback.format_exc()))
+            return
+
+        try:
+            res = self.provider.analyze_binary(md5sum, fp)
+        except AnalysisTemporaryError as e:
+            self.save_unsuccessful_analysis(md5sum, e)
+        except AnalysisPermanentError as e:
+            self.save_unsuccessful_analysis(md5sum, e)
+        except Exception as e:
+            self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in analyze_binary",
+                                                                           extended_message=traceback.format_exc()))
+        else:
+            self.save_successful_analysis(md5sum, res)
+
     def run(self):
         while not self.done:
             md5sum = self.queue.get(sleep_wait=False)
@@ -168,41 +225,7 @@ class DeepAnalysisThread(BinaryConsumerThread):
                 continue
 
             try:
-                res = self.provider.check_result_for(md5sum)
-                if type(res) == AnalysisResult:
-                    self.save_successful_analysis(md5sum, res)
-                    continue
-                # intentionally fall through if we return None from check_result_for...
+                self.deep_analysis(md5sum)
             except Exception as e:
-                self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in check_result_for",
-                                                                               extended_message=traceback.format_exc()))
-                continue
-
-            # we did not get a valid AnalysisResult from check_result_for, let's pull the binary down and scan it.
-
-            try:
-                z = StringIO(self.cb.binary(md5sum))
-            except Exception as e:
-                self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Binary not available in Cb",
-                                                                               retry_in=60))
-                continue
-
-            try:
-                zf = ZipFile(z)
-                fp = zf.open('filedata')
-            except Exception as e:
-                self.save_unsuccessful_analysis(md5sum, AnalysisPermanentError(message="Zip file corrupt",
-                                                                               extended_message=traceback.format_exc()))
-                continue
-
-            try:
-                res = self.provider.analyze_binary(md5sum, fp)
-            except AnalysisTemporaryError as e:
-                self.save_unsuccessful_analysis(md5sum, e)
-            except AnalysisPermanentError as e:
-                self.save_unsuccessful_analysis(md5sum, e)
-            except Exception as e:
-                self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in analyze_binary",
-                                                                               extended_message=traceback.format_exc()))
-            else:
-                self.save_successful_analysis(md5sum, res)
+                # we should never have an exception at this point.
+                log.error("Error during deep_scan of md5sum %s: %s: %s" % (md5sum, e.__class__.__name__, str(e)))

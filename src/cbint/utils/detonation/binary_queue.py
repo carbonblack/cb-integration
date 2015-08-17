@@ -26,11 +26,13 @@ class SqliteQueue(object):
   next_attempt_at        DATETIME,
   binary_available_since DATETIME,
   quick_scan_done        BOOLEAN,
+  retry_count            INTEGER,
   -- results
   short_result           TEXT,            -- this can be an error if the state is an error state
   detailed_result        TEXT,            -- we convert to HTML before storing in here
   score                  INTEGER,
   iocs                   TEXT,            -- this is just a dump of JSON data
+  provider_data          TEXT,            -- this is arbitrary data from the provider
   -- state
   state                  INTEGER,         -- define states below
   analysis_version       INTEGER
@@ -43,14 +45,18 @@ class SqliteQueue(object):
   analysis_version INTEGER                 -- the current "analysis" version. we can re-analyze things in the background
 );
 '''
-    _append = 'INSERT INTO binary_data (md5sum, last_modified, inserted_at, state, quick_scan_done) VALUES (?, ?, ?, 0, 0)'
+    _append = (
+        'INSERT INTO binary_data (md5sum, last_modified, inserted_at, state, quick_scan_done, retry_count) '
+        'VALUES (?, ?, ?, 0, 0, 0)'
+    )
     _write_lock = 'BEGIN IMMEDIATE'
     _popleft_get = (
-            'SELECT md5sum FROM binary_data WHERE state = 0 AND (next_attempt_at < ? OR next_attempt_at IS NULL)'
-            'ORDER BY binary_available_since DESC,next_attempt_at ASC LIMIT 1'
+            'SELECT md5sum FROM binary_data WHERE state = 0 AND (next_attempt_at < ? OR next_attempt_at IS NULL) '
+            'AND retry_count < ? '
+            'ORDER BY binary_available_since DESC,next_attempt_at DESC LIMIT 1'
             )
     _quickscan_get = (
-        'SELECT md5sum FROM binary_data WHERE state = 0 AND quick_scan_done = 0 LIMIT 1'
+        'SELECT md5sum FROM binary_data WHERE state = 0 AND quick_scan_done = 0 AND retry_count < ? LIMIT 1'
     )
     _update_queue = 'UPDATE binary_data SET state=50,last_modified = ? WHERE md5sum = ?'
     _all_analyzed = 'SELECT * FROM binary_data WHERE state = 100'
@@ -64,11 +70,12 @@ class SqliteQueue(object):
     _count_by_state = 'SELECT COUNT(*) FROM binary_data WHERE state = ?'
     _quick_scan_complete = "UPDATE binary_data SET quick_scan_done=1, state=0 WHERE md5sum = ?"
 
-    _current_db_version = 2
+    _current_db_version = 5
 
-    def __init__(self, path):
+    def __init__(self, path, max_retry_count=10):
         self.path = os.path.abspath(path)
         self._connection_cache = {}
+        self.max_retry_count = max_retry_count
 
         with self._get_conn() as conn:
             conn.execute(self._create_queue)
@@ -130,6 +137,17 @@ class SqliteQueue(object):
         with self._get_conn() as conn:
             conn.execute(self._add_iocs, (ioc_string, md5sum))
 
+# Traceback (most recent call last):
+#   File "/Users/jgarman/Desktop/Reno/homebrew/Cellar/python/2.7.10/Frameworks/Python.framework/Versions/2.7/lib/python2.7/threading.py", line 810, in __bootstrap_inner
+#     self.run()
+#   File "/Users/jgarman/Desktop/Reno/git/carbonblack/cb-integration/src/cbint/utils/detonation/binary_analysis.py", line 203, in run
+#     self.save_unsuccessful_analysis(md5sum, e)
+#   File "/Users/jgarman/Desktop/Reno/git/carbonblack/cb-integration/src/cbint/utils/detonation/binary_analysis.py", line 132, in save_unsuccessful_analysis
+#     retry_at=datetime.datetime.now()+datetime.timedelta(seconds=e.retry_in))
+#   File "/Users/jgarman/Desktop/Reno/git/carbonblack/cb-integration/src/cbint/utils/detonation/binary_queue.py", line 149, in mark_as_analyzed
+#     score, state, analysis_version, md5sum))
+# InterfaceError: Error binding parameter 2 - probably unsupported type.
+
     def mark_as_analyzed(self, md5sum, succeeded, analysis_version, short_result, long_result, score=0, retry_at=None):
         # print 'marking as analyzed: %s as %s: version %s, results: %s/%s, score: %d. retry? %s' % (
         #     md5sum, succeeded, analysis_version, short_result, long_result, score, retry_at
@@ -143,9 +161,18 @@ class SqliteQueue(object):
         else:
             state = 100
 
+        # print "%s analyzing %s with score %d" % ("Success" if succeeded else "Failed", md5sum, score)
+        # if not succeeded:
+        #     print datetime.datetime.now(), retry_at, short_result, long_result, score, state, analysis_version, md5sum
+
         with self._get_conn() as conn:
-            conn.execute(self._update_binary_state, (datetime.datetime.now(), retry_at, short_result, long_result,
-                                                     score, state, analysis_version, md5sum))
+            if not succeeded:
+                cur = conn.cursor()
+                cur.execute("SELECT retry_count FROM binary_data WHERE md5sum=?", (md5sum,))
+                (current_retry_count,) = cur.fetchone()
+                conn.execute("UPDATE binary_data SET retry_count=? WHERE md5sum=?", (current_retry_count+1,md5sum))
+            conn.execute(self._update_binary_state, (datetime.datetime.now(), str(retry_at), str(short_result),
+                                                     str(long_result), int(score), state, analysis_version, md5sum))
 
     def mark_quick_scan_complete(self, md5sum):
         with self._get_conn() as conn:
@@ -161,9 +188,9 @@ class SqliteQueue(object):
             while keep_pooling:
                 conn.execute(self._write_lock)
                 if quick_scan:
-                    cursor = conn.execute(self._quickscan_get)
+                    cursor = conn.execute(self._quickscan_get, (self.max_retry_count,))
                 else:
-                    cursor = conn.execute(self._popleft_get, (datetime.datetime.now(),))
+                    cursor = conn.execute(self._popleft_get, (datetime.datetime.now(),self.max_retry_count))
 
                 try:
                     md5sum, = cursor.next()
@@ -191,6 +218,16 @@ class SqliteQueue(object):
             if old_version < 3:
                 conn.execute("ALTER TABLE binary_data ADD COLUMN quick_scan_done BOOLEAN")
                 conn.execute("UPDATE binary_data SET quick_scan_done=0")
+                conn.execute("UPDATE feed_data SET database_version=3")
+
+            if old_version < 4:
+                conn.execute("ALTER TABLE binary_data ADD COLUMN retry_count INTEGER")
+                conn.execute("UPDATE binary_data SET retry_count=0")
+                conn.execute("UPDATE feed_data SET database_version=4")
+
+            if old_version < 5:
+                conn.execute("ALTER TABLE binary_data ADD COLUMN provider_data TEXT")
+                conn.execute("UPDATE feed_data SET database_version=5")
 
 
 class SqliteFeedServer(threading.Thread):
