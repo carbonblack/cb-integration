@@ -134,11 +134,14 @@ class BinaryConsumerThread(threading.Thread):
             self.queue.mark_as_analyzed(md5sum, False, 0, "%s: %s" % (e.__class__.__name__, e.message),
                                         "%s" % traceback.format_exc())
 
+    def save_empty_quick_scan(self, md5sum):
+        self.queue.mark_quick_scan_complete(md5sum)
+
 
 class QuickScanThread(BinaryConsumerThread):
     def run(self):
         while not self.done:
-            md5sum = self.queue.get(sleep_wait=False)
+            md5sum = self.queue.get(sleep_wait=False, quick_scan=True)
             if not md5sum:
                 sleep(.1)
                 continue
@@ -148,6 +151,8 @@ class QuickScanThread(BinaryConsumerThread):
                 if type(res) == AnalysisResult:
                     self.save_successful_analysis(md5sum, res)
                     continue
+                else:
+                    self.save_empty_quick_scan(md5sum)
             except Exception as e:
                 self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in check_result_for",
                                                                                extended_message=traceback.format_exc()))
@@ -167,6 +172,7 @@ class DeepAnalysisThread(BinaryConsumerThread):
                 if type(res) == AnalysisResult:
                     self.save_successful_analysis(md5sum, res)
                     continue
+                # intentionally fall through if we return None from check_result_for...
             except Exception as e:
                 self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in check_result_for",
                                                                                extended_message=traceback.format_exc()))

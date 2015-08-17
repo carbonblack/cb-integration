@@ -25,6 +25,7 @@ class SqliteQueue(object):
   inserted_at            DATETIME,
   next_attempt_at        DATETIME,
   binary_available_since DATETIME,
+  quick_scan_done        BOOLEAN,
   -- results
   short_result           TEXT,            -- this can be an error if the state is an error state
   detailed_result        TEXT,            -- we convert to HTML before storing in here
@@ -42,12 +43,15 @@ class SqliteQueue(object):
   analysis_version INTEGER                 -- the current "analysis" version. we can re-analyze things in the background
 );
 '''
-    _append = 'INSERT INTO binary_data (md5sum, last_modified, inserted_at, state) VALUES (?, ?, ?, 0)'
+    _append = 'INSERT INTO binary_data (md5sum, last_modified, inserted_at, state, quick_scan_done) VALUES (?, ?, ?, 0, 0)'
     _write_lock = 'BEGIN IMMEDIATE'
     _popleft_get = (
             'SELECT md5sum FROM binary_data WHERE state = 0 AND (next_attempt_at < ? OR next_attempt_at IS NULL)'
             'ORDER BY binary_available_since DESC,next_attempt_at ASC LIMIT 1'
             )
+    _quickscan_get = (
+        'SELECT md5sum FROM binary_data WHERE state = 0 AND quick_scan_done = 0 LIMIT 1'
+    )
     _update_queue = 'UPDATE binary_data SET state=50,last_modified = ? WHERE md5sum = ?'
     _all_analyzed = 'SELECT * FROM binary_data WHERE state = 100'
     _update_binary_availability = ('UPDATE binary_data SET last_modified = ?,binary_available_since = ?,'
@@ -58,6 +62,7 @@ class SqliteQueue(object):
     _add_iocs = 'UPDATE binary_data SET iocs = ? WHERE md5sum = ?'
     _set_metadata = 'INSERT INTO feed_data (database_version) VALUES (?)'
     _count_by_state = 'SELECT COUNT(*) FROM binary_data WHERE state = ?'
+    _quick_scan_complete = "UPDATE binary_data SET quick_scan_done=1, state=0 WHERE md5sum = ?"
 
     _current_db_version = 2
 
@@ -78,8 +83,7 @@ class SqliteQueue(object):
             else:
                 (version,) = res
                 if version != self._current_db_version:
-                    # TODO: database migrations
-                    pass
+                    self.migrate_version(version)
 
     def _get_conn(self):
         id = threading.current_thread().ident
@@ -143,7 +147,11 @@ class SqliteQueue(object):
             conn.execute(self._update_binary_state, (datetime.datetime.now(), retry_at, short_result, long_result,
                                                      score, state, analysis_version, md5sum))
 
-    def get(self, sleep_wait=True):
+    def mark_quick_scan_complete(self, md5sum):
+        with self._get_conn() as conn:
+            conn.execute(self._quick_scan_complete, (md5sum,))
+
+    def get(self, quick_scan=False, sleep_wait=True):
         keep_pooling = True
         wait = 0.1
         max_wait = 2
@@ -152,7 +160,11 @@ class SqliteQueue(object):
             md5sum = None
             while keep_pooling:
                 conn.execute(self._write_lock)
-                cursor = conn.execute(self._popleft_get, (datetime.datetime.now(),))
+                if quick_scan:
+                    cursor = conn.execute(self._quickscan_get)
+                else:
+                    cursor = conn.execute(self._popleft_get, (datetime.datetime.now(),))
+
                 try:
                     md5sum, = cursor.next()
                     keep_pooling = False
@@ -173,6 +185,12 @@ class SqliteQueue(object):
     def reprocess_on_restart(self):
         with self._get_conn() as conn:
             conn.execute(self._reprocess_binaries_on_restart)
+
+    def migrate_version(self, old_version):
+        with self._get_conn() as conn:
+            if old_version < 3:
+                conn.execute("ALTER TABLE binary_data ADD COLUMN quick_scan_done BOOLEAN")
+                conn.execute("UPDATE binary_data SET quick_scan_done=0")
 
 
 class SqliteFeedServer(threading.Thread):
