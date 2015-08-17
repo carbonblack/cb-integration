@@ -34,19 +34,23 @@ class CbAPIProducerThread(threading.Thread):
             # TODO: retry logic - make sure we don't bomb out if this fails
             query_string = '-alliance_score_%s %s' % (self.feed_name, self.filter_spec)
             log.debug("Querying cb for binaries matching '%s'" % query_string)
-            for i,binary in enumerate(self.cb.binary_search_iter(query_string, sort="server_added_timestamp desc")):
-                if self.done:
-                    return
+            try:
+                for i,binary in enumerate(self.cb.binary_search_iter(query_string, sort="server_added_timestamp desc")):
+                    if self.done:
+                        return
 
-                # TODO: keep track of server_added_timestamp if we have it, and use that to filter next time
-                if not self.queue.append(binary['md5']):
-                    pass
-                    # print 'md5 %s already tracked' % (binary['md5'],)
+                    # TODO: keep track of server_added_timestamp if we have it, and use that to filter next time
+                    if not self.queue.append(binary['md5']):
+                        pass
+                        # print 'md5 %s already tracked' % (binary['md5'],)
 
-                sleep(self.rate_limiter)        # no need to flood the Cb server or ourselves with binaries
+                    sleep(self.rate_limiter)        # no need to flood the Cb server or ourselves with binaries
 
-                if self.max_rows and i > self.max_rows:
-                    break
+                    if self.max_rows and i > self.max_rows:
+                        break
+            except Exception as e:
+                log.error("Error during binary enumeration: %s. Sleeping for %f seconds and retrying."
+                          % (str(e), self.sleep_between))
 
             if self.stop_when_done:
                 self.done = True
@@ -157,6 +161,10 @@ class QuickScanThread(BinaryConsumerThread):
                 self.save_successful_analysis(md5sum, res)
             else:
                 self.save_empty_quick_scan(md5sum)
+        except AnalysisTemporaryError as e:
+            self.save_unsuccessful_analysis(md5sum, e)
+        except AnalysisPermanentError as e:
+            self.save_unsuccessful_analysis(md5sum, e)
         except Exception as e:
             self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in check_result_for",
                                                                            extended_message=traceback.format_exc()))
@@ -183,6 +191,10 @@ class DeepAnalysisThread(BinaryConsumerThread):
                 self.save_successful_analysis(md5sum, res)
                 return
             # intentionally fall through if we return None from check_result_for...
+        except AnalysisTemporaryError as e:
+            self.save_unsuccessful_analysis(md5sum, e)
+        except AnalysisPermanentError as e:
+            self.save_unsuccessful_analysis(md5sum, e)
         except Exception as e:
             self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Exception in check_result_for",
                                                                            extended_message=traceback.format_exc()))
