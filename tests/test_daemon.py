@@ -6,6 +6,7 @@ import os
 import tempfile
 import sys
 import multiprocessing
+import threading
 import socket
 from time import sleep
 
@@ -37,6 +38,17 @@ def sleep_till_available(conn_tuple):
 
 
 class DaemonTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        mydir = os.path.dirname(os.path.abspath(__file__))
+
+        binaries_dir = os.path.join(mydir, 'data', 'binary_metadata')
+        cls.mock_server = get_mocked_server(binaries_dir)
+        cls.mock_server_thread = threading.Thread(target=cls.mock_server.run, args=['127.0.0.1', 7982])
+        cls.mock_server_thread.daemon = True
+        cls.mock_server_thread.start()
+        sleep_till_available(('127.0.0.1', 7982))
+
     def setUp(self):
         self.temp_directory = tempfile.mkdtemp()
         config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "daemon.conf")
@@ -44,23 +56,18 @@ class DaemonTest(unittest.TestCase):
                                  logfile=os.path.join(self.temp_directory, 'test.log'), debug=True)
         self.daemon.validate_config()
 
-        mydir = os.path.dirname(os.path.abspath(__file__))
-        binaries_dir = os.path.join(mydir, 'data', 'binary_metadata')
-        self.mock_server = get_mocked_server(binaries_dir)
-        self.mock_server_thread = multiprocessing.Process(target=self.mock_server.run, args=['127.0.0.1', 7982])
-        self.mock_server_thread.start()
-        sleep_till_available(('127.0.0.1', 7982))
         self.daemon.initialize_queue()
 
     def tearDown(self):
         # os.rmdir(self.temp_directory)
-        self.mock_server_thread.terminate()
+        # self.mock_server_thread.terminate()
+        pass
 
     def test_binary_collectors(self):
         CbAPIProducerThread(self.daemon.work_queue, self.daemon.cb, self.daemon.name, rate_limiter=0,
                             stop_when_done=True).run()
         cb_total = self.daemon.cb.binary_search('')['total_results']
-        return self.daemon.work_queue.number_unanalyzed() == cb_total
+        self.assertEquals(self.daemon.work_queue.number_unanalyzed(), cb_total)
 
     def test_empty(self):
-        print self.daemon.work_queue.number_unanalyzed()
+        self.assertEquals(self.daemon.work_queue.number_unanalyzed(), 0)

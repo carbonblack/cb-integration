@@ -33,6 +33,7 @@ class SqliteQueue(object):
   score                  INTEGER,
   iocs                   TEXT,            -- this is just a dump of JSON data
   provider_data          TEXT,            -- this is arbitrary data from the provider
+  link                   TEXT,
   -- state
   state                  INTEGER,         -- define states below
   analysis_version       INTEGER
@@ -63,14 +64,15 @@ class SqliteQueue(object):
     _update_binary_availability = ('UPDATE binary_data SET last_modified = ?,binary_available_since = ?,'
                                    'next_attempt_at = NULL WHERE md5sum = ?')
     _update_binary_state = ('UPDATE binary_data SET last_modified = ?,next_attempt_at = ?,short_result = ?,'
-                            'detailed_result = ?,score = ?,state = ?,analysis_version = ? WHERE md5sum = ?')
+                            'detailed_result = ?,score = ?,state = ?,analysis_version = ?,link = ?,iocs = ? '
+                            'WHERE md5sum = ?')
     _reprocess_binaries_on_restart = 'UPDATE binary_data SET state = 0 WHERE state = 50'
     _add_iocs = 'UPDATE binary_data SET iocs = ? WHERE md5sum = ?'
     _set_metadata = 'INSERT INTO feed_data (database_version) VALUES (?)'
     _count_by_state = 'SELECT COUNT(*) FROM binary_data WHERE state = ?'
     _quick_scan_complete = "UPDATE binary_data SET quick_scan_done=1, state=0 WHERE md5sum = ?"
 
-    _current_db_version = 5
+    _current_db_version = 6
 
     def __init__(self, path, max_retry_count=10):
         self.path = os.path.abspath(path)
@@ -137,18 +139,8 @@ class SqliteQueue(object):
         with self._get_conn() as conn:
             conn.execute(self._add_iocs, (ioc_string, md5sum))
 
-# Traceback (most recent call last):
-#   File "/Users/jgarman/Desktop/Reno/homebrew/Cellar/python/2.7.10/Frameworks/Python.framework/Versions/2.7/lib/python2.7/threading.py", line 810, in __bootstrap_inner
-#     self.run()
-#   File "/Users/jgarman/Desktop/Reno/git/carbonblack/cb-integration/src/cbint/utils/detonation/binary_analysis.py", line 203, in run
-#     self.save_unsuccessful_analysis(md5sum, e)
-#   File "/Users/jgarman/Desktop/Reno/git/carbonblack/cb-integration/src/cbint/utils/detonation/binary_analysis.py", line 132, in save_unsuccessful_analysis
-#     retry_at=datetime.datetime.now()+datetime.timedelta(seconds=e.retry_in))
-#   File "/Users/jgarman/Desktop/Reno/git/carbonblack/cb-integration/src/cbint/utils/detonation/binary_queue.py", line 149, in mark_as_analyzed
-#     score, state, analysis_version, md5sum))
-# InterfaceError: Error binding parameter 2 - probably unsupported type.
-
-    def mark_as_analyzed(self, md5sum, succeeded, analysis_version, short_result, long_result, score=0, retry_at=None):
+    def mark_as_analyzed(self, md5sum, succeeded, analysis_version, short_result, long_result, score=0, retry_at=None,
+                         link=None, iocs=None):
         # print 'marking as analyzed: %s as %s: version %s, results: %s/%s, score: %d. retry? %s' % (
         #     md5sum, succeeded, analysis_version, short_result, long_result, score, retry_at
         # )
@@ -161,6 +153,9 @@ class SqliteQueue(object):
         else:
             state = 100
 
+        if not retry_at:
+            retry_at = ''
+
         # print "%s analyzing %s with score %d" % ("Success" if succeeded else "Failed", md5sum, score)
         # if not succeeded:
         #     print datetime.datetime.now(), retry_at, short_result, long_result, score, state, analysis_version, md5sum
@@ -172,7 +167,18 @@ class SqliteQueue(object):
                 (current_retry_count,) = cur.fetchone()
                 conn.execute("UPDATE binary_data SET retry_count=? WHERE md5sum=?", (current_retry_count+1,md5sum))
             conn.execute(self._update_binary_state, (datetime.datetime.now(), str(retry_at), str(short_result),
-                                                     str(long_result), int(score), state, analysis_version, md5sum))
+                                                     str(long_result), int(score), state, analysis_version,
+                                                     link, iocs, md5sum))
+
+    def binary_exists_in_database(self, md5sum):
+        with self._get_conn() as conn:
+            cur = conn.cursor()
+            cur.execute ("SELECT * FROM binary_data WHERE md5sum=?", (md5sum,))
+            results = cur.fetchone()
+            if not results:
+                return False
+            else:
+                return True
 
     def mark_quick_scan_complete(self, md5sum):
         with self._get_conn() as conn:
@@ -229,10 +235,14 @@ class SqliteQueue(object):
                 conn.execute("ALTER TABLE binary_data ADD COLUMN provider_data TEXT")
                 conn.execute("UPDATE feed_data SET database_version=5")
 
+            if old_version < 6:
+                conn.execute("ALTER TABLE binary_data ADD COLUMN link TEXT")
+                conn.execute("UPDATE feed_data SET database_version=6")
+
 
 class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
-    _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score FROM binary_data WHERE state=100'
+    _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score,link FROM binary_data WHERE state=100'
 
     def __init__(self, dbname, port_number, feed_metadata):
         threading.Thread.__init__(self)
@@ -258,9 +268,9 @@ class SqliteFeedServer(threading.Thread):
         feed_data['reports'] = []
         for binary in binaries:
             feed_data['reports'].append({
-                'timestamp': int(time.time()), # TODO: fix
+                'timestamp': int(time.time()), # TODO: fix (get from last_modified_time)
                 'id': binary[0],
-                'link': '',              # TODO: fix
+                'link': binary[6],
                 'title': binary[2],
                 'score': binary[5],
                 'iocs': {                # TODO: merge iocs from the database

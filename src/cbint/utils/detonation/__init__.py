@@ -12,6 +12,11 @@ from threading import Event, Thread
 from time import sleep
 import logging
 
+try:
+    import simplejson as json
+except ImportError:
+    import json
+
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +64,8 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.feed_dirty = Event()
         self.feed_url = None
 
+    ### Start: Functions which must be overriden in subclasses of DetonationDaemon ###
+
     @property
     def num_quick_scan_threads(self):
         return 1
@@ -76,6 +83,8 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def get_metadata(self):
         raise IntegrationError("Integration did not provide a 'get_metadata' function, which is required")
+
+    ### End:   Functions which must be overriden in subclasses of DetonationDaemon ###
 
     def get_config_string(self, config_key, default_value=None):
         if self.cfg.has_option("bridge", config_key):
@@ -136,11 +145,58 @@ class DetonationDaemon(CbIntegrationDaemon):
         if not self._queue_initialized:
             self.work_queue = SqliteQueue(self.database_file)
             self.work_queue.reprocess_on_restart()
-
-            # TODO: check to see if there are existing files that we should import from a previous version of the connector
             self._queue_initialized = True
 
         return self.work_queue
+
+    def migrate_legacy_reports(self, legacy_directory):
+        migrated_count = 0
+
+        for fn in (f for f in os.listdir(legacy_directory) if os.path.isfile(os.path.join(legacy_directory,f))):
+            try:
+                d = json.load(open(os.path.join(legacy_directory, fn), 'rb'))
+                short_result = d['title']
+                timestamp = int(d['timestamp'])
+                iocs = d['iocs']
+                score = int(d['score'])
+                link = d['link']
+
+                # NOTE: we are assuming the first md5 in the list is the md5sum of the binary.
+                md5_iocs = iocs.get('md5', [])
+                if not md5_iocs:
+                    log.warning("No MD5 IOCs in file %s" % fn)
+                    continue
+
+                md5sum = md5_iocs[0]
+                md5_iocs.remove(md5sum)
+                if not md5_iocs:
+                    del(iocs['md5'])
+                if not iocs:
+                    iocs = None
+
+                succeeded = (score >= 0)
+            except Exception as e:
+                log.warning("Could not parse file %s: %s" % (fn, e))
+                continue
+
+            try:
+                if not self.work_queue.binary_exists_in_database(md5sum):
+                    self.work_queue.append(md5sum)
+                    self.work_queue.mark_as_analyzed(md5sum, succeeded, 0, short_result, '', score=score, link=link,
+                                                     iocs=iocs)
+                    migrated_count += 1
+            except Exception as e:
+                log.warning("Could not migrate file %s to new database: %s" % (fn, e))
+                import traceback
+                log.warning(traceback.format_exc())
+                continue
+
+            try:
+                os.remove(os.path.join(legacy_directory, fn))
+            except IOError:
+                log.warning("Could not remove old file %s after migration: %s" % (fn, e))
+
+        log.info("Migrated %d reports into database" % migrated_count)
 
     def start_binary_collectors(self, filter_spec):
         collectors = []

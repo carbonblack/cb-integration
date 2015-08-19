@@ -98,4 +98,4 @@ class ConcurrencyTestCase(unittest.TestCase):
             md5s_consumed.extend(t.errors)
             md5s_consumed.extend(t.good)
 
-        return set(md5s_produced) == set(md5s_consumed)
+        self.assertSetEqual(set(md5s_produced), set(md5s_consumed))
