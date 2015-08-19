@@ -244,12 +244,13 @@ class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
     _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score,link FROM binary_data WHERE state=100'
 
-    def __init__(self, dbname, port_number, feed_metadata):
+    def __init__(self, dbname, port_number, feed_metadata, listener_address='0.0.0.0'):
         threading.Thread.__init__(self)
         self.daemon = True
         self.dbname = dbname
         self.port_number = port_number
         self.feed_metadata = feed_metadata
+        self.listener_address = listener_address
 
         self.app = flask.Flask(__name__, template_folder='templates')
         self.app.add_url_rule("/binaries.html", view_func=self.binary_results, methods=['GET'])
@@ -292,4 +293,4 @@ class SqliteFeedServer(threading.Thread):
         self.conn = sqlite3.Connection(self.dbname, timeout=60)
         self.conn.row_factory = sqlite3.Row
 
-        self.app.run(host='0.0.0.0', port=self.port_number, debug=True, use_reloader=False)
+        self.app.run(host=self.listener_address, port=self.port_number, debug=True, use_reloader=False)

@@ -219,7 +219,8 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def start_feed_server(self, feed_metadata):
         self.feed_server = SqliteFeedServer(self.database_file, self.get_config_integer('listener_port', 8080),
-                                            feed_metadata)
+                                            feed_metadata,
+                                            listener_address=self.get_config_string('listener_address', '0.0.0.0'))
         self.feed_server.start()
 
     def get_or_create_feed(self):
