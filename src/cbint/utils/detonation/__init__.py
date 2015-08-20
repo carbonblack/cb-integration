@@ -100,7 +100,7 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def get_config_integer(self, config_key, default_value=0):
         if self.cfg.has_option("bridge", config_key):
-            return self.cfg.getinteger("bridge", config_key)
+            return self.cfg.getint("bridge", config_key)
         else:
             return default_value
 
