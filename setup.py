@@ -16,7 +16,7 @@ setup(
     author_email='dev-support@bit9.com',
     description='Carbon Black Integration Library',
     long_description=__doc__,
-    packages=['cbint', 'cbint.utils'],
+    packages=['cbint', 'cbint.utils', 'cbint.utils.detonation'],
     package_data={'cbint': ['utils/templates/*']},
     package_dir = {'': 'src'},
     platforms='any',
@@ -27,5 +27,6 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Topic :: Software Development :: Libraries :: Python Modules'
-    ]
+    ],
+    install_requires=['flask']
 )
