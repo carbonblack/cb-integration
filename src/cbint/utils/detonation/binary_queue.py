@@ -12,7 +12,7 @@ except ImportError:
 import copy
 import logging
 import time
-from cbint.utils.detonation.templates import binary_template
+from cbint.utils.templates import binary_template
 
 
 log = logging.getLogger(__name__)
