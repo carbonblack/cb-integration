@@ -17,7 +17,7 @@ setup(
     description='Carbon Black Integration Library',
     long_description=__doc__,
     packages=['cbint', 'cbint.utils', 'cbint.utils.detonation'],
-    package_data={'cbint': ['utils/templates/*']},
+    package_data={'cbint': ['utils/templates/*'], 'cbint.utils.detonation': ['templates/*']},
     package_dir = {'': 'src'},
     platforms='any',
     classifiers=[
