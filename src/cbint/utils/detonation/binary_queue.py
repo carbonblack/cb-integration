@@ -273,7 +273,7 @@ class SqliteFeedServer(threading.Thread):
         for binary in binaries:
             feed_data['reports'].append({
                 'timestamp': int((dateutil.parser.parse(binary[1]) - epoch).total_seconds()),
-                'id': binary[0],
+                'id': "Binary_%s" % binary[0],
                 'link': binary[6] if binary[6] else '',
                 'title': binary[2],
                 'score': binary[5],
