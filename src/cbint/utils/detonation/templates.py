@@ -64,7 +64,7 @@ binary_template = '''
           </table>
           <br>
       <tr>
-        <td>©Copyright Carbon Black 2015 All Rights Reserved</td>
+        <td>Copyright Carbon Black 2015 All Rights Reserved</td>
       </tr>
     </table>
   </body>
