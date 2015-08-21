@@ -139,6 +139,12 @@ class DetonationDaemon(CbIntegrationDaemon):
                                                                    self.get_config_integer('listener_port', 8080),
                                                                    '/feed.json')
 
+        try:
+            cbinfo = self.cb.info()
+            self.cb_version = cbinfo['version']
+        except Exception as e:
+            raise ConfigurationError("Could not connect to Cb server at %s: %s" % (server_url, str(e)))
+
         return True
 
     def initialize_queue(self):
