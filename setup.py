@@ -28,5 +28,5 @@ setup(
         'Programming Language :: Python',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
-    install_requires=['flask']
+    install_requires=['flask', 'python-dateutil']
 )

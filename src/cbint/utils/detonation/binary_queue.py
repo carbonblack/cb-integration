@@ -13,8 +13,10 @@ import copy
 import logging
 import time
 from cbint.utils.templates import binary_template
+import dateutil.parser
 
 
+epoch = datetime.datetime(1970,1,1)
 log = logging.getLogger(__name__)
 
 
@@ -55,7 +57,7 @@ class SqliteQueue(object):
     _popleft_get = (
             'SELECT md5sum FROM binary_data WHERE state = 0 AND (next_attempt_at < ? OR next_attempt_at IS NULL) '
             'AND retry_count < ? '
-            'ORDER BY binary_available_since DESC,next_attempt_at DESC LIMIT 1'
+            'ORDER BY binary_available_since DESC,next_attempt_at ASC LIMIT 1'
             )
     _quickscan_get = (
         'SELECT md5sum FROM binary_data WHERE state = 0 AND quick_scan_done = 0 AND retry_count < ? LIMIT 1'
@@ -270,9 +272,9 @@ class SqliteFeedServer(threading.Thread):
         feed_data['reports'] = []
         for binary in binaries:
             feed_data['reports'].append({
-                'timestamp': int(time.time()), # TODO: fix (get from last_modified_time)
+                'timestamp': int((dateutil.parser.parse(binary[1]) - epoch).total_seconds()),
                 'id': binary[0],
-                'link': binary[6],
+                'link': binary[6] if binary[6] else '',
                 'title': binary[2],
                 'score': binary[5],
                 'iocs': {                # TODO: merge iocs from the database

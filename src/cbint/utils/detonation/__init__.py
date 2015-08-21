@@ -208,10 +208,13 @@ class DetonationDaemon(CbIntegrationDaemon):
         collectors = []
 
         collectors.append(CbAPIProducerThread(self.work_queue, self.cb, self.name,
-                                              sleep_between=10, filter_spec=filter_spec)) # historical query
+                                              sleep_between=self.get_config_integer('sleep_between_batches', 10),
+                                              rate_limiter=0.5,
+                                              filter_spec=filter_spec)) # historical query
         collectors.append(CbAPIProducerThread(self.work_queue, self.cb, self.name,
-                                              max_rows=100, sleep_between=10, filter_spec=filter_spec))
-            # constantly up-to-date query
+                                              max_rows=100,
+                                              sleep_between=self.get_config_integer('sleep_between_batches', 10),
+                                              filter_spec=filter_spec)) # constantly up-to-date query
 
         if self.use_streaming:
             # TODO: need filter_spec for streaming
