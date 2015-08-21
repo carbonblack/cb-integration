@@ -12,6 +12,7 @@ except ImportError:
 import copy
 import logging
 import time
+from templates import binary_template
 
 
 log = logging.getLogger(__name__)
@@ -252,7 +253,7 @@ class SqliteFeedServer(threading.Thread):
         self.feed_metadata = feed_metadata
         self.listener_address = listener_address
 
-        self.app = flask.Flask(__name__, template_folder='templates')
+        self.app = flask.Flask(__name__)
         self.app.add_url_rule("/binaries.html", view_func=self.binary_results, methods=['GET'])
         self.app.add_url_rule("/feed.json", view_func=self.feed_content, methods=['GET'])
         self.app.add_url_rule("/", view_func=self.index, methods=['GET'])
@@ -287,7 +288,7 @@ class SqliteFeedServer(threading.Thread):
         cur = self.conn.cursor()
         cur.execute(self._get_feed_contents)
         binaries = cur.fetchall()
-        return flask.render_template('binaries.html', binaries=binaries, integration_name='test_feed')
+        return flask.render_template_string(binary_template, binaries=binaries, integration_name='test_feed')
 
     def run(self):
         self.conn = sqlite3.Connection(self.dbname, timeout=60)
