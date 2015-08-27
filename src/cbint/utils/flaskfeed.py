@@ -3,16 +3,14 @@ import io
 import flask
 
 import cbint.utils.json
+from cbint.utils.templates import index_template, feed_template
 
-
-class FlaskFeed:
+class FlaskFeed(object):
 
     def __init__(self, import_name, use_wgsi_body_helper=False, template_folder=None):
 
         self.local_dir = os.path.dirname(os.path.realpath(__file__))
-        if template_folder is None:
-            template_folder = "%s/templates" % self.local_dir
-        self.app = flask.Flask(import_name, template_folder=template_folder)
+        self.app = flask.Flask(import_name)
         if use_wgsi_body_helper:
             self.app.wsgi_app = WSGICopyBody(self.app.wsgi_app)
 
@@ -35,7 +33,7 @@ class FlaskFeed:
         generates the feed in html format
         """
 
-        return flask.render_template('feed.html', feed=feed, integration_name=integration_name)
+        return flask.render_template_string(feed_template, feed=feed, integration_name=integration_name)
 
     def generate_html_index(self, feed, options, integration_name,
                             cb_image_path, integration_image_path, json_feed_path, last_sync=None):
@@ -60,7 +58,7 @@ class FlaskFeed:
                 feed_copy['feedinfo'][key] = feed['feedinfo'][key]
         feed_copy['feedinfo']['num_reports'] = len(feed['reports'])
 
-        return flask.render_template('index.html', options=options, feed=feed_copy,
+        return flask.render_template_string(index_template, options=options, feed=feed_copy,
                                      integration_name=integration_name, integration_image_path=integration_image_path,
                                      cb_image_path=cb_image_path, json_feed_path=json_feed_path, last_sync=last_sync)
 

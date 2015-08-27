@@ -10,8 +10,13 @@ import logging
 import ConfigParser
 from logging.handlers import RotatingFileHandler
 from signal import SIGTERM
-
+import errno
+import traceback
 import cbint.utils.filesystem
+
+
+class ConfigurationError(Exception):
+    pass
 
 
 class CbIntegrationDaemon(object):
@@ -26,23 +31,49 @@ class CbIntegrationDaemon(object):
                  debug=False):
         self.name = name
         self.configfile = configfile
+        self.cfg = None
         self.logfile = logfile
         self.pidfile = pidfile
         self.options = {}
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
-        self.__is_initialized = False
+        self.__is_daemon_initialized = False
+        self.__is_logging_initialized = False
         self.logger = logging.getLogger()
         self.logger.setLevel(logging.INFO)
+        self.debug = debug
 
-        if not debug:
+        if self.configfile is None:
+            config_path = "/etc/cb/integrations/%s/" % self.name
+            cbint.utils.filesystem.ensure_directory_exists(config_path)
+            self.configfile = "%s%s.cfg" % (config_path, self.name)
+
+        self.__initialize_logging()
+
+        try:
+            self.__parse_config(self.configfile)
+        except Exception as e:
+            self.fatal(e)
+
+        if self.debug:                            # set in __parse_config
+            self.logger.setLevel(logging.DEBUG)
+        else:
             euid = os.geteuid()
             if euid != 0:
                 sys.stderr.write("%s: must be root to run (try sudo?)\n" % self.name)
                 sys.exit(1)
 
-            self.__initialize_common()
+            self.__initialize_daemon()
+
+    def fatal(self, e):
+        # log the Exception everywhere
+        msg = "%s (%s)" % (e.message, e.__class__.__name__)
+        sys.stderr.write("%s: %s\n" % (self.name, msg))
+        sys.stderr.flush()
+        self.logger.critical(msg)
+        self.logger.critical("Traceback: %s" % traceback.format_exc())
+        sys.exit(1)
 
     def daemonize(self):
         """
@@ -91,44 +122,53 @@ class CbIntegrationDaemon(object):
         file(self.pidfile, 'w+').write("%s\n" % pid)
 
     def delpid(self):
-        os.remove(self.pidfile)
+        try:
+            os.remove(self.pidfile)
+        except OSError as e:
+            if e.errno != errno.ENOENT:
+                raise
 
     def start(self):
         """
         Start the daemon
         """
-        self.on_starting()
+        if not self.debug:
+            # Check for a pidfile to see if the daemon already runs
+            try:
+                pf = file(self.pidfile, 'r')
+                pid = int(pf.read().strip())
+                pf.close()
+            except IOError:
+                pid = None
 
-        # Check for a pidfile to see if the daemon already runs
-        try:
-            pf = file(self.pidfile, 'r')
-            pid = int(pf.read().strip())
-            pf.close()
-        except IOError:
-            pid = None
-
-        if pid:
-            sys.stderr.write("%s: pidfile %s already exist. Daemon already running?\n" % (self.name, self.pidfile))
-            sys.exit(1)
+            if pid:
+                sys.stderr.write("%s: pidfile %s already exist. Daemon already running?\n" % (self.name, self.pidfile))
+                sys.exit(1)
 
         self.logger.info("daemon starting...")
 
-        if not self.validate_config():
-            error_msg = "config file validation failed: %s" % self.configfile or "None"
-            sys.stderr.write("%s: error: %s\n" % (self.name, error_msg))
-            self.logger.error(error_msg)
-            sys.exit(1)
-
-        # Start the daemon
-        self.daemonize()
         try:
-            self.run()
+            # for backwards compatibility, validate_config() can also return False
+            if not self.validate_config():
+                raise ConfigurationError("Configuration file validation failed for %s" % self.configfile)
         except Exception as e:
-            self.logger.critical("an exception occurred while running the daemon: %s" % e)
+            self.fatal(e)
+
+        # call on_starting just before we call run()
+        self.on_starting()
+
+        if self.debug:
+            self.logger.info("Starting %s in the foreground, in debug mode" % self.name)
+            self.run()
+        else:
+            # Start the daemon
+            self.daemonize()
+            try:
+                self.run()
+            except Exception as e:
+                self.fatal(e)
 
         self.logger.info("the daemon has stopped")
-
-        self.on_start()
 
         sys.exit(1)
 
@@ -161,8 +201,7 @@ class CbIntegrationDaemon(object):
         except OSError, err:
             err = str(err)
             if err.find("No such process") > 0:
-                if os.path.exists(self.pidfile):
-                    os.remove(self.pidfile)
+                self.delpid()
             else:
                 print str(err)
                 sys.exit(1)
@@ -185,11 +224,6 @@ class CbIntegrationDaemon(object):
     def on_starting(self):
         """
         You should override this method when you subclass if you want to take action BEFORE the service is starting
-        """
-
-    def on_start(self):
-        """
-        You should override this method when you subclass if you want to take action AFTER the service has started
         """
 
     def on_stopping(self):
@@ -215,46 +249,43 @@ class CbIntegrationDaemon(object):
         """
 
         if not os.path.exists(configfile):
-            warning_msg = "could not locate config file: %s" % configfile or "None"
-            sys.stderr.write("%s: warning: %s\n" % (self.name, warning_msg))
-            self.logger.warn(warning_msg)
-            return
+            raise ConfigurationError("could not locate config file: %s" % configfile or "None")
 
         self.logger.info("parsing configuration")
-        cfg = ConfigParser.ConfigParser()
-        cfg.read(configfile)
-        for section in cfg.sections():
+        self.cfg = ConfigParser.SafeConfigParser()
+        self.cfg.read(configfile)
+
+        # keeping self.options for backwards compatibility with older integrations
+        for section in self.cfg.sections():
             self.options[section] = {}
             self.logger.info("section: %s" % section)
-            for option in cfg.options(section):
-                self.options[section][option] = cfg.get(section, option)
-                self.logger.info("   %s: %s" % (option, cfg.get(section, option)))
+            for option in self.cfg.options(section):
+                self.options[section][option] = self.cfg.get(section, option)
+                self.logger.info("   %s: %s" % (option, self.cfg.get(section, option)))
 
-    def __initialize_common(self):
+    def __initialize_daemon(self):
         """
         Initialized common variables and objects that are needed by start and stop
         """
 
-        if not self.__is_initialized:
+        if not self.__is_daemon_initialized:
             if self.pidfile is None:
                 pid_path = "/var/run/cb/integrations/"
                 cbint.utils.filesystem.ensure_directory_exists(pid_path)
                 self.pidfile = "%s%s.pid" % (pid_path, self.name)
+
+            self.__is_daemon_initialized = True
+
+    def __initialize_logging(self):
+        if not self.__is_logging_initialized:
 
             if self.logfile is None:
                 log_path = "/var/log/cb/integrations/%s/" % self.name
                 cbint.utils.filesystem.ensure_directory_exists(log_path)
                 self.logfile = "%s%s.log" % (log_path, self.name)
 
-            if self.configfile is None:
-                config_path = "/etc/cb/integrations/%s/" % self.name
-                cbint.utils.filesystem.ensure_directory_exists(config_path)
-                self.configfile = "%s%s.cfg" % (config_path, self.name)
-
             rlh = RotatingFileHandler(self.logfile, maxBytes=524288, backupCount=10)
             rlh.setFormatter(logging.Formatter(fmt="%(asctime)s: %(module)s: %(levelname)s: %(message)s"))
             self.logger.addHandler(rlh)
 
-            self.__parse_config(self.configfile)
-
-            self.__is_initialized = True
+        self.__is_logging_initialized = True
