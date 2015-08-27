@@ -4,12 +4,14 @@ import sys
 
 sys.path.insert(0, "src/")
 
-from cbint import version
+# TODO: fix version handling...
+version="5.1.0.15137"
+
 from setuptools import setup
 
 setup(
     name='python-cb-integration',
-    version=version.__version__,
+    version=version,
     url='http://www.bit9.com/',
     license='MIT',
     author='Carbon Black',
