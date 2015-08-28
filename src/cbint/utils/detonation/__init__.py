@@ -25,6 +25,13 @@ class IntegrationError(Exception):
     pass
 
 
+def touch(path):
+    try:
+        os.utime(path, None)
+    except:
+        open(path, 'a').close()
+
+
 class FeedSyncRunner(Thread):
     """
     performs feed synchronization logic
@@ -158,6 +165,9 @@ class DetonationDaemon(CbIntegrationDaemon):
     def migrate_legacy_reports(self, legacy_directory):
         migrated_count = 0
 
+        if os.path.isfile(os.path.join(legacy_directory, '.migrated')):
+            log.info("Feed reports from %s already migrated" % legacy_directory)
+
         for fn in (f for f in os.listdir(legacy_directory) if os.path.isfile(os.path.join(legacy_directory,f))):
             try:
                 d = json.load(open(os.path.join(legacy_directory, fn), 'rb'))
@@ -197,12 +207,14 @@ class DetonationDaemon(CbIntegrationDaemon):
                 log.warning(traceback.format_exc())
                 continue
 
-            try:
-                os.remove(os.path.join(legacy_directory, fn))
-            except IOError:
-                log.warning("Could not remove old file %s after migration: %s" % (fn, e))
+            # try:
+            #     os.remove(os.path.join(legacy_directory, fn))
+            # except IOError:
+            #     log.warning("Could not remove old file %s after migration: %s" % (fn, e))
 
-        log.info("Migrated %d reports into database" % migrated_count)
+        touch(os.path.join(legacy_directory, '.migrated'))
+
+        log.info("Migrated %d reports from %s into database" % (migrated_count, legacy_directory))
 
     def start_binary_collectors(self, filter_spec):
         collectors = []

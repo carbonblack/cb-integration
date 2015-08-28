@@ -37,7 +37,8 @@ class TestLegacyMigration(unittest.TestCase):
 
             self.assertIsNotNone(results, msg="Did not import md5sum %s" % fileid)
 
-        remaining_files = glob.glob(os.path.join(self.temp_directory, "import_directory", "*"))
-        self.assertItemsEqual([], remaining_files, msg="Files remaining: %s" % remaining_files)
+        # remaining_files = glob.glob(os.path.join(self.temp_directory, "import_directory", "*"))
+        # self.assertItemsEqual([], remaining_files, msg="Files remaining: %s" % remaining_files)
+        self.assertTrue(os.path.isfile(os.path.join(self.temp_directory, "import_directory", ".migrated")))
 
         return True
