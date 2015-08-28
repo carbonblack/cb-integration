@@ -173,7 +173,7 @@ class QuickScanThread(BinaryConsumerThread):
         while not self.done:
             md5sum = self.queue.get(sleep_wait=False, quick_scan=True)
             if not md5sum:
-                sleep(.1)
+                sleep(.5)
                 continue
 
             try:
@@ -233,7 +233,7 @@ class DeepAnalysisThread(BinaryConsumerThread):
         while not self.done:
             md5sum = self.queue.get(sleep_wait=False)
             if not md5sum:
-                sleep(.1)
+                sleep(.5)
                 continue
 
             try:
