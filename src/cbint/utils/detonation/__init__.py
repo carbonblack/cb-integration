@@ -260,6 +260,11 @@ class DetonationDaemon(CbIntegrationDaemon):
     def run(self):
         work_queue = self.initialize_queue()
 
+        # Import previous work, if enabled
+        legacy_feed_directory = self.get_config_string("legacy_feed_directory", None)
+        if legacy_feed_directory:
+            self.migrate_legacy_reports(legacy_feed_directory)
+
         # Prepare binary analysis ("detonation") provider
         consumer_threads = []
         provider = self.get_provider()
