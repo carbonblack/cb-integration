@@ -167,6 +167,7 @@ class DetonationDaemon(CbIntegrationDaemon):
 
         if os.path.isfile(os.path.join(legacy_directory, '.migrated')):
             log.info("Feed reports from %s already migrated" % legacy_directory)
+            return
 
         for fn in (f for f in os.listdir(legacy_directory) if os.path.isfile(os.path.join(legacy_directory,f))):
             try:
