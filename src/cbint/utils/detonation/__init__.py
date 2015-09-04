@@ -167,7 +167,7 @@ class DetonationDaemon(CbIntegrationDaemon):
 
         if os.path.isfile(os.path.join(legacy_directory, '.migrated')):
             log.info("Feed reports from %s already migrated" % legacy_directory)
-            return
+            return migrated_count
 
         for fn in (f for f in os.listdir(legacy_directory) if os.path.isfile(os.path.join(legacy_directory,f))):
             try:
@@ -216,6 +216,7 @@ class DetonationDaemon(CbIntegrationDaemon):
         touch(os.path.join(legacy_directory, '.migrated'))
 
         log.info("Migrated %d reports from %s into database" % (migrated_count, legacy_directory))
+        return migrated_count
 
     def start_binary_collectors(self, filter_spec):
         collectors = []
