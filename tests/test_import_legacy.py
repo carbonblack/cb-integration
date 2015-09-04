@@ -26,9 +26,10 @@ class TestLegacyMigration(unittest.TestCase):
     def test_migration(self):
         shutil.copytree(os.path.join(self.data_path, "legacy_files"),
                         os.path.join(self.temp_directory, "import_directory"))
-        self.daemon.migrate_legacy_reports(os.path.join(self.temp_directory, "import_directory"))
+        migrated_count = self.daemon.migrate_legacy_reports(os.path.join(self.temp_directory, "import_directory"))
         conn = sqlite3.connect(self.daemon.database_file)
 
+        original_file_count = 0
         for fn in glob.glob(os.path.join(self.data_path, "legacy_files", "*")):
             fileid = json.load(open(fn, 'rb'))['iocs']['md5'][0]
             cur = conn.cursor()
@@ -36,9 +37,15 @@ class TestLegacyMigration(unittest.TestCase):
             results = cur.fetchone()
 
             self.assertIsNotNone(results, msg="Did not import md5sum %s" % fileid)
+            original_file_count += 1
 
         # remaining_files = glob.glob(os.path.join(self.temp_directory, "import_directory", "*"))
         # self.assertItemsEqual([], remaining_files, msg="Files remaining: %s" % remaining_files)
         self.assertTrue(os.path.isfile(os.path.join(self.temp_directory, "import_directory", ".migrated")))
+        self.assertEqual(original_file_count, migrated_count)
+
+        # ensure that we don't try to re-migrate the reports
+        migrated_count = self.daemon.migrate_legacy_reports(os.path.join(self.temp_directory, "import_directory"))
+        self.assertEqual(migrated_count, 0)
 
         return True
