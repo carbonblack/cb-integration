@@ -252,7 +252,7 @@ class CbIntegrationDaemon(object):
             raise ConfigurationError("could not locate config file: %s" % configfile or "None")
 
         self.logger.info("parsing configuration")
-        self.cfg = ConfigParser.SafeConfigParser()
+        self.cfg = ConfigParser.RawConfigParser()
         self.cfg.read(configfile)
 
         # keeping self.options for backwards compatibility with older integrations
