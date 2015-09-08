@@ -13,6 +13,7 @@ from signal import SIGTERM
 import errno
 import traceback
 import cbint.utils.filesystem
+import cbapi
 
 
 class ConfigurationError(Exception):
@@ -153,6 +154,15 @@ class CbIntegrationDaemon(object):
                 raise ConfigurationError("Configuration file validation failed for %s" % self.configfile)
         except Exception as e:
             self.fatal(e)
+
+        ssl_verify = self.get_config_boolean("carbonblack_server_sslverify", False)
+        server_url = self.cfg.get("bridge", "carbonblack_server_url")
+        server_token = self.cfg.get("bridge", "carbonblack_server_token")
+        try:
+            cb = cbapi.CbApi(server_url, token=server_token, ssl_verify=ssl_verify)
+        except Exception as e:
+            pass
+            # raise ConfigurationError("Could not create CbAPI instance to %s: %s" % (server_url, e.message))
 
         # call on_starting just before we call run()
         self.on_starting()
