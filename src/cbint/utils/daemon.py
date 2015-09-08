@@ -299,3 +299,28 @@ class CbIntegrationDaemon(object):
             self.logger.addHandler(rlh)
 
         self.__is_logging_initialized = True
+
+    def get_config_string(self, config_key, default_value=None):
+        if self.cfg.has_option("bridge", config_key):
+            return self.cfg.get("bridge", config_key)
+        else:
+            return default_value
+
+    def get_config_boolean(self, config_key, default_value=False):
+        if self.cfg.has_option("bridge", config_key):
+            return self.cfg.getboolean("bridge", config_key)
+        else:
+            return default_value
+
+    def get_config_integer(self, config_key, default_value=0):
+        if self.cfg.has_option("bridge", config_key):
+            return self.cfg.getint("bridge", config_key)
+        else:
+            return default_value
+
+    def check_required_options(self, required_options):
+        for option in required_options:
+            if not self.cfg.has_option("bridge", option):
+                raise ConfigurationError("Configuration file does not have required option %s in [bridge] section" %
+                                         option)
+
