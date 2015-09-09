@@ -156,8 +156,8 @@ class CbIntegrationDaemon(object):
             self.fatal(e)
 
         ssl_verify = self.get_config_boolean("carbonblack_server_sslverify", False)
-        server_url = self.get_config_string("bridge", "carbonblack_server_url", "https://127.0.0.1")
-        server_token = self.cfg.get("bridge", "carbonblack_server_token", "")
+        server_url = self.get_config_string("carbonblack_server_url", "https://127.0.0.1")
+        server_token = self.get_config_string("carbonblack_server_token", "")
         try:
             cb = cbapi.CbApi(server_url, token=server_token, ssl_verify=ssl_verify)
         except Exception as e:
