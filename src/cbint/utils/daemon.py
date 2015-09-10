@@ -159,7 +159,10 @@ class CbIntegrationDaemon(object):
         server_url = self.get_config_string("carbonblack_server_url", "https://127.0.0.1")
         server_token = self.get_config_string("carbonblack_server_token", "")
         try:
+            # here we just need to make one HTTP request in order to work around an issue where we get a file not
+            # found exception on unicode.so after the fork() from the requests library when we package with pyinstaller.
             cb = cbapi.CbApi(server_url, token=server_token, ssl_verify=ssl_verify)
+            cb.info()
         except Exception as e:
             pass
             # raise ConfigurationError("Could not create CbAPI instance to %s: %s" % (server_url, e.message))
