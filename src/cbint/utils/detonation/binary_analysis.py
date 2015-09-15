@@ -8,6 +8,7 @@ from zipfile import ZipFile
 from cStringIO import StringIO
 import time
 import logging
+import dateutil.parser
 
 
 log = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class CbAPIProducerThread(threading.Thread):
 
         now = to_cb_time(datetime.datetime.utcnow())
         self.start_time_key = self.__class__.__name__+'_start_time'
-        self.start_time = self.queue.get_value(self.start_time_key, now)
+        self.start_time = dateutil.parser.parse(self.queue.get_value(self.start_time_key, now))
 
     def stop(self):
         self.done = True

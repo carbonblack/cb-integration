@@ -1,7 +1,7 @@
 __author__ = 'jgarman'
 
 import unittest
-from cbint.utils.detonation import DetonationDaemon, CbAPIProducerThread
+from cbint.utils.detonation import DetonationDaemon, CbAPIUpToDateProducerThread, CbAPIHistoricalProducerThread
 import os
 import tempfile
 import sys
@@ -64,9 +64,9 @@ class DaemonTest(unittest.TestCase):
         pass
 
     def test_binary_collectors(self):
-        CbAPIProducerThread(self.daemon.work_queue, self.daemon.cb, self.daemon.name, rate_limiter=0,
+        CbAPIHistoricalProducerThread(self.daemon.work_queue, self.daemon.cb, self.daemon.name, rate_limiter=0,
                             stop_when_done=True).run()
-        cb_total = self.daemon.cb.binary_search('')['total_results']
+        cb_total = self.daemon.cb.binary_search('', rows=1000)['total_results']
         self.assertEquals(self.daemon.work_queue.number_unanalyzed(), cb_total)
 
     def test_empty(self):
