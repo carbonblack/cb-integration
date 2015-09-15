@@ -2,7 +2,8 @@ __author__ = 'jgarman'
 
 from cbint.utils.daemon import CbIntegrationDaemon, ConfigurationError
 from cbint.utils.detonation.binary_queue import SqliteQueue, SqliteFeedServer
-from cbint.utils.detonation.binary_analysis import (CbAPIProducerThread, CbStreamingProducerThread, QuickScanThread,
+from cbint.utils.detonation.binary_analysis import (CbAPIHistoricalProducerThread, CbAPIUpToDateProducerThread,
+                                                    CbStreamingProducerThread, QuickScanThread,
                                                     DeepAnalysisThread)
 import cbint.utils.feed
 import cbint.utils.cbserver
@@ -197,12 +198,11 @@ class DetonationDaemon(CbIntegrationDaemon):
     def start_binary_collectors(self, filter_spec):
         collectors = []
 
-        collectors.append(CbAPIProducerThread(self.work_queue, self.cb, self.name,
+        collectors.append(CbAPIHistoricalProducerThread(self.work_queue, self.cb, self.name,
                                               sleep_between=self.get_config_integer('sleep_between_batches', 1200),
                                               rate_limiter=0.5,
                                               filter_spec=filter_spec)) # historical query
-        collectors.append(CbAPIProducerThread(self.work_queue, self.cb, self.name,
-                                              max_rows=100,
+        collectors.append(CbAPIUpToDateProducerThread(self.work_queue, self.cb, self.name,
                                               sleep_between=self.get_config_integer('sleep_between_batches', 30),
                                               filter_spec=filter_spec)) # constantly up-to-date query
 

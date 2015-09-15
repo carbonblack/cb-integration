@@ -12,6 +12,11 @@ import logging
 
 log = logging.getLogger(__name__)
 
+
+def to_cb_time(dt):
+    return dt.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+
+
 class CbAPIProducerThread(threading.Thread):
     def __init__(self, work_queue, cb, name, max_rows=None, sleep_between=60, rate_limiter=0.1, stop_when_done=False,
                  filter_spec=''):
@@ -26,16 +31,28 @@ class CbAPIProducerThread(threading.Thread):
         self.stop_when_done = stop_when_done
         self.filter_spec = filter_spec
 
+        now = to_cb_time(datetime.datetime.utcnow())
+        self.start_time_key = self.__class__.__name__+'_start_time'
+        self.start_time = self.queue.get_value(self.start_time_key, now)
+
     def stop(self):
         self.done = True
+
+    @property
+    def query_string(self):
+        return self.filter_spec
+
+    @property
+    def query_sort(self):
+        return "server_added_timestamp desc"
 
     def run(self):
         while not self.done:
             # TODO: retry logic - make sure we don't bomb out if this fails
-            query_string = '-alliance_score_%s %s' % (self.feed_name, self.filter_spec)
-            log.debug("Querying cb for binaries matching '%s'" % query_string)
+            log.debug("Querying cb for binaries matching '%s'" % self.query_string)
             try:
-                for i,binary in enumerate(self.cb.binary_search_iter(query_string, sort="server_added_timestamp desc")):
+                for i, binary in enumerate(self.cb.binary_search_iter(self.query_string,
+                                                                      sort=self.query_sort)):
                     if self.done:
                         return
 
@@ -43,6 +60,8 @@ class CbAPIProducerThread(threading.Thread):
                     if not self.queue.append(binary['md5']):
                         pass
                         # print 'md5 %s already tracked' % (binary['md5'],)
+
+                    self.queue.set_value(self.start_time_key, binary['server_added_timestamp'])
 
                     sleep(self.rate_limiter)        # no need to flood the Cb server or ourselves with binaries
 
@@ -56,6 +75,35 @@ class CbAPIProducerThread(threading.Thread):
                 self.done = True
             else:
                 sleep(self.sleep_between)
+
+
+class CbAPIUpToDateProducerThread(CbAPIProducerThread):
+    def __init__(self, *args, **kwargs):
+        super(CbAPIUpToDateProducerThread, self).__init__(*args, **kwargs)
+
+    @property
+    def query_string(self):
+        if self.start_time:
+            return "server_added_timestamp:[%s TO *] %s" % (to_cb_time(self.start_time), self.filter_spec)
+        else:
+            return self.filter_spec
+
+    @property
+    def query_sort(self):
+        return "server_added_timestamp asc"
+
+
+class CbAPIHistoricalProducerThread(CbAPIProducerThread):
+    @property
+    def query_string(self):
+        if self.start_time:
+            return "server_added_timestamp:[* TO %s] %s" % (to_cb_time(self.start_time), self.filter_spec)
+        else:
+            return self.filter_spec
+
+    @property
+    def query_sort(self):
+        return "server_added_timestamp desc"
 
 
 class CbStreamingProducerThread(QueuedCbSubscriber):
