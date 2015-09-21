@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 
 def to_cb_time(dt):
-    return dt.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+    return dt.strftime('%Y-%m-%dT%H:%M:%S')
 
 
 class CbAPIProducerThread(threading.Thread):
@@ -32,7 +32,9 @@ class CbAPIProducerThread(threading.Thread):
         self.stop_when_done = stop_when_done
         self.filter_spec = filter_spec
 
-        now = to_cb_time(datetime.datetime.utcnow())
+        now = getattr(self, 'default_start_time', datetime.datetime.utcnow())
+        now = to_cb_time(now)
+
         self.start_time_key = self.__class__.__name__+'_start_time'
         self.start_time = dateutil.parser.parse(self.queue.get_value(self.start_time_key, now))
 
@@ -48,6 +50,8 @@ class CbAPIProducerThread(threading.Thread):
         return "server_added_timestamp desc"
 
     def run(self):
+        self.queue.set_value(self.start_time_key, to_cb_time(self.start_time))
+
         while not self.done:
             # TODO: retry logic - make sure we don't bomb out if this fails
             log.debug("Querying cb for binaries matching '%s'" % self.query_string)
@@ -80,14 +84,17 @@ class CbAPIProducerThread(threading.Thread):
 
 class CbAPIUpToDateProducerThread(CbAPIProducerThread):
     def __init__(self, *args, **kwargs):
+        self.default_start_time = kwargs.pop('start_time', None)
         super(CbAPIUpToDateProducerThread, self).__init__(*args, **kwargs)
 
     @property
     def query_string(self):
         if self.start_time:
-            return "server_added_timestamp:[%s TO *] %s" % (to_cb_time(self.start_time), self.filter_spec)
+            return "server_added_timestamp:[%s TO *] -alliance_score_%s %s" % (to_cb_time(self.start_time),
+                                                                               self.feed_name,
+                                                                               self.filter_spec)
         else:
-            return self.filter_spec
+            return "-alliance_score_%s %s" % (self.feed_name, self.filter_spec)
 
     @property
     def query_sort(self):
@@ -95,12 +102,18 @@ class CbAPIUpToDateProducerThread(CbAPIProducerThread):
 
 
 class CbAPIHistoricalProducerThread(CbAPIProducerThread):
+    def __init__(self, *args, **kwargs):
+        self.default_start_time = kwargs.pop('start_time', None)
+        super(CbAPIHistoricalProducerThread, self).__init__(*args, **kwargs)
+
     @property
     def query_string(self):
         if self.start_time:
-            return "server_added_timestamp:[* TO %s] %s" % (to_cb_time(self.start_time), self.filter_spec)
+            return "server_added_timestamp:[* TO %s] -alliance_score_%s %s" % (to_cb_time(self.start_time),
+                                                                               self.feed_name,
+                                                                               self.filter_spec)
         else:
-            return self.filter_spec
+            return "-alliance_score_%s %s" % (self.feed_name, self.filter_spec)
 
     @property
     def query_sort(self):

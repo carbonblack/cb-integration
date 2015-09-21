@@ -63,18 +63,17 @@ def get_mocked_server(binary_directory):
 
     def binary_search(q, rows, start, sort_string):
         # we only support 'q' on server_added_timestamp
-        log.info("typeof(q) = %s" % q.__class__.__name__)
         matches = filter_re.search(q)
         if not matches:
             filtered_binaries = binaries
         else:
             if matches.group(1) == '*':
                 limit = dateutil.parser.parse(matches.group(2))
-                filtered_binaries = filter(lambda x: dateutil.parser.parse(x['server_added_timestamp']) <= limit,
+                filtered_binaries = filter(lambda x: dateutil.parser.parse(x['server_added_timestamp']).replace(tzinfo=None) <= limit,
                                            binaries)
             else:
                 limit = dateutil.parser.parse(matches.group(1))
-                filtered_binaries = filter(lambda x: dateutil.parser.parse(x['server_added_timestamp']) > limit,
+                filtered_binaries = filter(lambda x: dateutil.parser.parse(x['server_added_timestamp']).replace(tzinfo=None) > limit,
                                            binaries)
 
         (field, direction) = sort_string.split()
