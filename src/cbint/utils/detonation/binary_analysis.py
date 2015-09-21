@@ -72,6 +72,10 @@ class CbAPIProducerThread(threading.Thread):
 
                     if self.max_rows and i > self.max_rows:
                         break
+
+                    if i % 100 == 0:
+                        self.queue.set_value(self.start_time_key, cur_timestamp)
+
             except Exception as e:
                 log.error("Error during binary enumeration: %s. Sleeping for %f seconds and retrying."
                           % (str(e), self.sleep_between))
