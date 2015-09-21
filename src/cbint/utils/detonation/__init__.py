@@ -2,7 +2,8 @@ __author__ = 'jgarman'
 
 from cbint.utils.daemon import CbIntegrationDaemon, ConfigurationError
 from cbint.utils.detonation.binary_queue import SqliteQueue, SqliteFeedServer
-from cbint.utils.detonation.binary_analysis import (CbAPIProducerThread, CbStreamingProducerThread, QuickScanThread,
+from cbint.utils.detonation.binary_analysis import (CbAPIHistoricalProducerThread, CbAPIUpToDateProducerThread,
+                                                    CbStreamingProducerThread, QuickScanThread,
                                                     DeepAnalysisThread)
 import cbint.utils.feed
 import cbint.utils.cbserver
@@ -11,6 +12,7 @@ import os.path
 from threading import Event, Thread
 from time import sleep
 import logging
+import datetime
 
 try:
     import simplejson as json
@@ -196,15 +198,16 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def start_binary_collectors(self, filter_spec):
         collectors = []
+        now = datetime.datetime.utcnow()
 
-        collectors.append(CbAPIProducerThread(self.work_queue, self.cb, self.name,
-                                              sleep_between=self.get_config_integer('sleep_between_batches', 1200),
-                                              rate_limiter=0.5,
-                                              filter_spec=filter_spec)) # historical query
-        collectors.append(CbAPIProducerThread(self.work_queue, self.cb, self.name,
-                                              max_rows=100,
-                                              sleep_between=self.get_config_integer('sleep_between_batches', 30),
-                                              filter_spec=filter_spec)) # constantly up-to-date query
+        collectors.append(CbAPIHistoricalProducerThread(self.work_queue, self.cb, self.name,
+                                                        sleep_between=self.get_config_integer('sleep_between_batches', 1200),
+                                                        rate_limiter=0.5, start_time=now,
+                                                        filter_spec=filter_spec)) # historical query
+        collectors.append(CbAPIUpToDateProducerThread(self.work_queue, self.cb, self.name,
+                                                      sleep_between=self.get_config_integer('sleep_between_batches', 30),
+                                                      start_time=now,
+                                                      filter_spec=filter_spec)) # constantly up-to-date query
 
         if self.use_streaming:
             # TODO: need filter_spec for streaming

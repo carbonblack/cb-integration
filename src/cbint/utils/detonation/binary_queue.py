@@ -49,6 +49,12 @@ class SqliteQueue(object):
   analysis_version INTEGER                 -- the current "analysis" version. we can re-analyze things in the background
 );
 '''
+    _create_kvstore = '''CREATE TABLE IF NOT EXISTS kv_store (
+  -- arbitrary key-value store for configuration information
+  key              TEXT,
+  value            TEXT
+);
+'''
     _append = (
         'INSERT INTO binary_data (md5sum, last_modified, inserted_at, state, quick_scan_done, retry_count) '
         'VALUES (?, ?, ?, 0, 0, 0)'
@@ -85,6 +91,7 @@ class SqliteQueue(object):
         with self._get_conn() as conn:
             conn.execute(self._create_queue)
             conn.execute(self._create_metadata)
+            conn.execute(self._create_kvstore)
 
             cur = conn.cursor()
             cur.execute("SELECT database_version FROM feed_data")
@@ -176,7 +183,7 @@ class SqliteQueue(object):
     def binary_exists_in_database(self, md5sum):
         with self._get_conn() as conn:
             cur = conn.cursor()
-            cur.execute ("SELECT * FROM binary_data WHERE md5sum=?", (md5sum,))
+            cur.execute("SELECT * FROM binary_data WHERE md5sum=?", (md5sum,))
             results = cur.fetchone()
             if not results:
                 return False
@@ -242,6 +249,23 @@ class SqliteQueue(object):
                 conn.execute("ALTER TABLE binary_data ADD COLUMN link TEXT")
                 conn.execute("UPDATE feed_data SET database_version=6")
 
+    def get_value(self, keyname, default=None):
+        with self._get_conn() as conn:
+            cursor = conn.execute("SELECT value FROM kv_store WHERE key=?", (keyname,))
+            results = cursor.fetchone()
+            if not results:
+                return default
+            else:
+                return results[0]
+
+    def set_value(self, keyname, new_value):
+        with self._get_conn() as conn:
+            cursor = conn.execute("SELECT value FROM kv_store WHERE key=?", (keyname,))
+            if cursor.fetchone():
+                conn.execute("UPDATE kv_store SET value=? WHERE key=?", (new_value, keyname))
+            else:
+                conn.execute("INSERT INTO kv_store VALUES (?, ?)", (keyname, new_value))
+
 
 class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
@@ -271,18 +295,20 @@ class SqliteFeedServer(threading.Thread):
         feed_data = copy.deepcopy(self.feed_metadata)
         feed_data['reports'] = []
         for binary in binaries:
-            feed_data['reports'].append({
-                'timestamp': int((dateutil.parser.parse(binary[1]) - epoch).total_seconds()),
-                'id': "Binary_%s" % binary[0],
-                'link': binary[6] if binary[6] else '',
-                'title': binary[2],
-                'score': binary[5],
-                'iocs': {                # TODO: merge iocs from the database
-                    'md5': [
-                        binary[0],
-                    ]
-                }
-            })
+            # Only report binaries with a non-zero score
+            if int(binary[5]) > 0:
+                feed_data['reports'].append({
+                    'timestamp': int((dateutil.parser.parse(binary[1]) - epoch).total_seconds()),
+                    'id': "Binary_%s" % binary[0],
+                    'link': binary[6] if binary[6] else '',
+                    'title': binary[2],
+                    'score': binary[5],
+                    'iocs': {                # TODO: merge iocs from the database
+                        'md5': [
+                            binary[0],
+                        ]
+                    }
+                })
 
         return flask.Response(json.dumps(feed_data), mimetype='application/json')
 

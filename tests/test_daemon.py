@@ -1,17 +1,22 @@
 __author__ = 'jgarman'
 
 import unittest
-from cbint.utils.detonation import DetonationDaemon, CbAPIProducerThread
+from cbint.utils.detonation import DetonationDaemon, CbAPIUpToDateProducerThread, CbAPIHistoricalProducerThread
 import os
 import tempfile
 import sys
-import multiprocessing
 import threading
 import socket
 from time import sleep
+import dateutil.parser
+import logging
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from utils.mock_server import get_mocked_server
+
+logging.basicConfig()
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 
 class TestDaemon(DetonationDaemon):
@@ -64,9 +69,19 @@ class DaemonTest(unittest.TestCase):
         pass
 
     def test_binary_collectors(self):
-        CbAPIProducerThread(self.daemon.work_queue, self.daemon.cb, self.daemon.name, rate_limiter=0,
-                            stop_when_done=True).run()
-        cb_total = self.daemon.cb.binary_search('')['total_results']
+        now = dateutil.parser.parse('2015-07-01')
+        historical_producer = CbAPIHistoricalProducerThread(self.daemon.work_queue, self.daemon.cb, self.daemon.name,
+                                                            rate_limiter=0, stop_when_done=True, start_time=now)
+        historical_producer.run()
+
+        up_to_date_producer = CbAPIUpToDateProducerThread(self.daemon.work_queue, self.daemon.cb, self.daemon.name,
+                                                          rate_limiter=0, stop_when_done=True, start_time=now)
+        up_to_date_producer.run()
+
+        log.info('earliest binary: %s' % self.daemon.work_queue.get_value('CbAPIHistoricalProducerThread_start_time'))
+        log.info('latest binary  : %s' % self.daemon.work_queue.get_value('CbAPIUpToDateProducerThread_start_time'))
+
+        cb_total = self.daemon.cb.binary_search('', rows=1000)['total_results']
         self.assertEquals(self.daemon.work_queue.number_unanalyzed(), cb_total)
 
     def test_empty(self):

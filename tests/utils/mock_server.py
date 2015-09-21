@@ -9,17 +9,25 @@ except ImportError:
 from flask import Flask, request, make_response, Response
 from cStringIO import StringIO
 import zipfile
+import re
+import dateutil.parser
+
+
+log = logging.getLogger(__name__)
 
 
 def get_mocked_server(binary_directory):
     mocked_cb_server = Flask('cb')
 
     files = os.listdir(binary_directory)
+    binaries = [json.load(open(os.path.join(binary_directory, fn), 'r')) for fn in files]
+    filter_re = re.compile("server_added_timestamp:\[(.*) TO (.*)\]")
 
     @mocked_cb_server.route('/api/v1/binary', methods=['GET', 'POST'])
     def binary_search_endpoint():
         if request.method == 'GET':
             query_string = request.args.get('q', '')
+            sort_string = request.args.get('sort', 'server_added_timestamp desc')
             rows = int(request.args.get('rows', 10))
             start = int(request.args.get('start', 0))
         elif request.method == 'POST':
@@ -38,18 +46,48 @@ def get_mocked_server(binary_directory):
                 start = int(parsed_data['start'])
             else:
                 start = 0
+
+            if 'sort' in parsed_data:
+                sort_string = parsed_data['sort']
+            else:
+                sort_string = 'server_added_timestamp desc'
+
         else:
             return make_response('Invalid Request', 500)
 
-        return Response(response=json.dumps(binary_search(query_string, rows, start)),
+        if type(query_string) == list:
+            query_string = query_string[0]
+
+        return Response(response=json.dumps(binary_search(query_string, rows, start, sort_string)),
                         mimetype='application/json')
 
-    def binary_search(q, rows, start):
+    def binary_search(q, rows, start, sort_string):
+        # we only support 'q' on server_added_timestamp
+        matches = filter_re.search(q)
+        if not matches:
+            filtered_binaries = binaries
+        else:
+            if matches.group(1) == '*':
+                limit = dateutil.parser.parse(matches.group(2))
+                filtered_binaries = filter(lambda x: dateutil.parser.parse(x['server_added_timestamp']).replace(tzinfo=None) <= limit,
+                                           binaries)
+            else:
+                limit = dateutil.parser.parse(matches.group(1))
+                filtered_binaries = filter(lambda x: dateutil.parser.parse(x['server_added_timestamp']).replace(tzinfo=None) > limit,
+                                           binaries)
+
+        (field, direction) = sort_string.split()
+        if direction == 'asc':
+            reverse = False
+        else:
+            reverse = True
+
+        sorted_binaries = sorted(filtered_binaries, key=lambda x: x[field], reverse=reverse)[start:start+rows]
+
         return {
-            'results':
-                [json.load(open(os.path.join(binary_directory, fn), 'r')) for fn in files[start:start+rows]],
+            'results': sorted_binaries,
             'terms': '',
-            'total_results': len(files),
+            'total_results': len(sorted_binaries),
             'start': start,
             'elapsed': 0.1,
             'highlights': [],
