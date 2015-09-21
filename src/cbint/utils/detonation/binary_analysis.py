@@ -81,6 +81,7 @@ class CbAPIProducerThread(threading.Thread):
                           % (str(e), self.sleep_between))
 
             self.queue.set_value(self.start_time_key, cur_timestamp)
+            self.start_time = dateutil.parser.parse(cur_timestamp)
 
             if self.stop_when_done:
                 self.done = True
