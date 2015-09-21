@@ -12,6 +12,7 @@ import os.path
 from threading import Event, Thread
 from time import sleep
 import logging
+import datetime
 
 try:
     import simplejson as json
@@ -197,14 +198,17 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def start_binary_collectors(self, filter_spec):
         collectors = []
+        now = datetime.datetime.utcnow()
 
         collectors.append(CbAPIHistoricalProducerThread(self.work_queue, self.cb, self.name,
-                                              sleep_between=self.get_config_integer('sleep_between_batches', 1200),
-                                              rate_limiter=0.5,
-                                              filter_spec=filter_spec)) # historical query
+                                                        sleep_between=self.get_config_integer('sleep_between_batches', 1200),
+                                                        rate_limiter=0.5, start_time=now,
+                                                        filter_spec=filter_spec)) # historical query
         collectors.append(CbAPIUpToDateProducerThread(self.work_queue, self.cb, self.name,
-                                              sleep_between=self.get_config_integer('sleep_between_batches', 30),
-                                              filter_spec=filter_spec)) # constantly up-to-date query
+                                                      max_rows=100,
+                                                      sleep_between=self.get_config_integer('sleep_between_batches', 30),
+                                                      start_time=now,
+                                                      filter_spec=filter_spec)) # constantly up-to-date query
 
         if self.use_streaming:
             # TODO: need filter_spec for streaming

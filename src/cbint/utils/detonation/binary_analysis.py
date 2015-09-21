@@ -86,7 +86,7 @@ class CbAPIProducerThread(threading.Thread):
 
 class CbAPIUpToDateProducerThread(CbAPIProducerThread):
     def __init__(self, *args, **kwargs):
-        self.default_start_time = kwargs.pop('start_time', None)
+        self.default_start_time = kwargs.pop('start_time', datetime.datetime.utcnow())
         super(CbAPIUpToDateProducerThread, self).__init__(*args, **kwargs)
 
     @property
@@ -105,7 +105,7 @@ class CbAPIUpToDateProducerThread(CbAPIProducerThread):
 
 class CbAPIHistoricalProducerThread(CbAPIProducerThread):
     def __init__(self, *args, **kwargs):
-        self.default_start_time = kwargs.pop('start_time', None)
+        self.default_start_time = kwargs.pop('start_time', datetime.datetime.utcnow())
         super(CbAPIHistoricalProducerThread, self).__init__(*args, **kwargs)
 
     @property
