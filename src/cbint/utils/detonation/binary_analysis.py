@@ -50,7 +50,8 @@ class CbAPIProducerThread(threading.Thread):
         return "server_added_timestamp desc"
 
     def run(self):
-        self.queue.set_value(self.start_time_key, to_cb_time(self.start_time))
+        cur_timestamp = to_cb_time(self.start_time)
+        self.queue.set_value(self.start_time_key, cur_timestamp)
 
         while not self.done:
             # TODO: retry logic - make sure we don't bomb out if this fails
@@ -66,15 +67,16 @@ class CbAPIProducerThread(threading.Thread):
                         pass
                         # print 'md5 %s already tracked' % (binary['md5'],)
 
-                    self.queue.set_value(self.start_time_key, binary['server_added_timestamp'])
-
                     sleep(self.rate_limiter)        # no need to flood the Cb server or ourselves with binaries
+                    cur_timestamp = binary['server_added_timestamp']
 
                     if self.max_rows and i > self.max_rows:
                         break
             except Exception as e:
                 log.error("Error during binary enumeration: %s. Sleeping for %f seconds and retrying."
                           % (str(e), self.sleep_between))
+
+            self.queue.set_value(self.start_time_key, cur_timestamp)
 
             if self.stop_when_done:
                 self.done = True
