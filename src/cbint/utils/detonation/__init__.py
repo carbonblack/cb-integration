@@ -144,7 +144,7 @@ class DetonationDaemon(CbIntegrationDaemon):
         migrated_count = 0
 
         if not os.path.isdir(legacy_directory):
-            log.info("Legacy directory %s doesn't exist, nothing to migrate", legacy_directory)
+            log.info("Legacy directory %s doesn't exist, nothing to migrate" % legacy_directory)
             return migrated_count
 
         if os.path.isfile(os.path.join(legacy_directory, '.migrated')):
