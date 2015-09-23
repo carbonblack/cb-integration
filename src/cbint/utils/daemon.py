@@ -264,17 +264,17 @@ class CbIntegrationDaemon(object):
         if not os.path.exists(configfile):
             raise ConfigurationError("could not locate config file: %s" % configfile or "None")
 
-        self.logger.info("parsing configuration")
+        self.logger.debug("parsing configuration")
         self.cfg = ConfigParser.RawConfigParser()
         self.cfg.read(configfile)
 
         # keeping self.options for backwards compatibility with older integrations
         for section in self.cfg.sections():
             self.options[section] = {}
-            self.logger.info("section: %s" % section)
+            self.logger.debug("section: %s" % section)
             for option in self.cfg.options(section):
                 self.options[section][option] = self.cfg.get(section, option)
-                self.logger.info("   %s: %s" % (option, self.cfg.get(section, option)))
+                self.logger.debug("   %s: %s" % (option, self.cfg.get(section, option)))
 
     def __initialize_daemon(self):
         """
