@@ -176,6 +176,13 @@ class CbIntegrationDaemon(object):
         else:
             self.logger.warning('No default IPv4 route found')
 
+        proxy_environment_variables = ['https_proxy', 'http_proxy', 'no_proxy']
+        proxy_environment_variables.extend([v.upper() for v in proxy_environment_variables])
+
+        for proxy_env in proxy_environment_variables:
+            if os.getenv(proxy_env):
+                self.logger.info('Found proxy configuration: %s = %s' % (proxy_env, os.getenv(proxy_env)))
+
         try:
             # here we just need to make one HTTP request in order to work around an issue where we get a file not
             # found exception on unicode.so after the fork() from the requests library when we package with pyinstaller.
