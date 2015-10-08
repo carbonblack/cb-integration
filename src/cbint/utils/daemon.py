@@ -14,6 +14,7 @@ import errno
 import traceback
 import cbint.utils.filesystem
 import cbapi
+from netifaces import interfaces, ifaddresses, AF_INET6, AF_INET, gateways
 
 
 class ConfigurationError(Exception):
@@ -44,6 +45,9 @@ class CbIntegrationDaemon(object):
         self.logger = logging.getLogger()
         self.logger.setLevel(logging.INFO)
         self.debug = debug
+
+        # Disable requests verbose logging at INFO level
+        logging.getLogger("requests").setLevel(logging.WARNING)
 
         if self.configfile is None:
             config_path = "/etc/cb/integrations/%s/" % self.name
@@ -158,6 +162,20 @@ class CbIntegrationDaemon(object):
         ssl_verify = self.get_config_boolean("carbonblack_server_sslverify", False)
         server_url = self.get_config_string("carbonblack_server_url", "https://127.0.0.1")
         server_token = self.get_config_string("carbonblack_server_token", "")
+
+        # log the interfaces for this computer for debugging purposes
+
+        for interface_name in interfaces():
+            ip4addresses = [i['addr'] for i in
+                            ifaddresses(interface_name).setdefault(AF_INET, [{'addr':'No IPv4 addr'}] )]
+            self.logger.info('IPv4 addresses for %s: %s' % (interface_name, ', '.join(ip4addresses)))
+
+        gateway_ip, gateway_dev = gateways()['default'].setdefault(AF_INET, ('No gateway', None))
+        if gateway_dev:
+            self.logger.info('Default IPv4 route: %s via %s' % (gateway_ip, gateway_dev))
+        else:
+            self.logger.warning('No default IPv4 route found')
+
         try:
             # here we just need to make one HTTP request in order to work around an issue where we get a file not
             # found exception on unicode.so after the fork() from the requests library when we package with pyinstaller.
