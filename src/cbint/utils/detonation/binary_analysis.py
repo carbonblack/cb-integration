@@ -214,11 +214,21 @@ class BinaryConsumerThread(threading.Thread):
             retry_in_seconds = int(e.retry_in)
             self.queue.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message,
                                         retry_at=datetime.datetime.now()+datetime.timedelta(seconds=retry_in_seconds))
+            log.error("Temporary error analyzing md5sum %s: %s (%s). Will retry in %d seconds." % (md5sum,
+                                                                                                   e.message,
+                                                                                                   e.extended_message,
+                                                                                                   retry_in_seconds))
         elif type(e) == AnalysisPermanentError:
             self.queue.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message)
+            log.error("Permanent error analyzing md5sum %s: %s (%s)." % (md5sum,
+                                                                         e.message,
+                                                                         e.extended_message))
         else:
             self.queue.mark_as_analyzed(md5sum, False, 0, "%s: %s" % (e.__class__.__name__, e.message),
                                         "%s" % traceback.format_exc())
+            log.error("Unknown error analyzing md5sum %s: %s (%s)." % (md5sum,
+                                                                       e.__class__.__name__,
+                                                                       e.message))
 
     def save_empty_quick_scan(self, md5sum):
         self.queue.mark_quick_scan_complete(md5sum)
