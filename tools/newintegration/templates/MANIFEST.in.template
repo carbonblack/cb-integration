@@ -1,0 +1,7 @@
+recursive-include cbopensource *
+recursive-include root/etc *
+recursive-include root/usr *
+recursive-include scripts
+{% for script in scripts %}
+include {{ script }}.spec
+{% endfor %}

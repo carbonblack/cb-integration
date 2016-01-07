@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+
+
+import sys
+import os
+
+import cbopensource.connectors.{{ provider_name }}.bridge as bridge
+from cbopensource.connectors.{{ provider_name }} import __version__
+
+if __name__ == "__main__":
+    name = "{{ provider_name }}"
+
+    # set the path to the CA certificate PEM file to our local cache
+    cacert_pem_path = "/usr/share/cb/integrations/{{ provider_name }}/cacert.pem"
+    if os.path.isfile(cacert_pem_path):
+        os.environ["REQUESTS_CA_BUNDLE"] = cacert_pem_path
+
+    daemon = bridge.{{ provider_name | capitalize }}Connector(name,
+                                      configfile="/etc/cb/integrations/{{ provider_name }}/connector.conf",
+                                      work_directory="/usr/share/cb/integrations/{{ provider_name }}/db")
+    if len(sys.argv) == 2:
+        if 'start' == sys.argv[1]:
+            daemon.start()
+        elif 'stop' == sys.argv[1]:
+            daemon.stop()
+        elif 'restart' == sys.argv[1]:
+            daemon.restart()
+        elif 'version' == sys.argv[1]:
+            print "%s - version %s" % (name, __version__)
+        else:
+            print "Unknown command: %s" % sys.argv[1]
+            sys.exit(2)
+
+    else:
+        print "Usage: %s start|stop|restart|version" % sys.argv[0]
+        sys.exit(2)
+
+    sys.exit(0)
