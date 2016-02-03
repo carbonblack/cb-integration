@@ -27,7 +27,7 @@ feed_host=127.0.0.1
 ; binary_filter_query
 ; Additional query options to filter only binaries of interest to the {{ provider_name | capitalize }} connector
 ;
-binary_filter_query=is_executable_image:true is_64bit:false -digsig_publisher:"Microsoft Corporation"
+binary_filter_query=is_executable_image:true -(digsig_publisher:"Microsoft Corporation" and digsig_result:"Signed")
 
 ;
 ; legacy_feed_directory
