@@ -22,6 +22,8 @@ class CbAPIProducerThread(threading.Thread):
     def __init__(self, work_queue, cb, name, max_rows=None, sleep_between=60, rate_limiter=0.1, stop_when_done=False,
                  filter_spec=''):
         threading.Thread.__init__(self)
+        self.daemon = True
+
         self.queue = work_queue
         self.done = False
         self.cb = cb
@@ -63,7 +65,7 @@ class CbAPIProducerThread(threading.Thread):
                         return
 
                     # TODO: keep track of server_added_timestamp if we have it, and use that to filter next time
-                    if not self.queue.append(binary['md5']):
+                    if not self.queue.notify_binary_available(binary['md5']):
                         pass
                         # print 'md5 %s already tracked' % (binary['md5'],)
 
@@ -194,7 +196,9 @@ class BinaryAnalysisProvider(object):
 class BinaryConsumerThread(threading.Thread):
     def __init__(self, work_queue, cb, provider, dirty_event):
         threading.Thread.__init__(self)
-        self.queue = work_queue
+        self.daemon = True
+
+        self.database_arbiter = work_queue
         self.done = False
         self.provider = provider
         self.cb = cb
@@ -204,34 +208,36 @@ class BinaryConsumerThread(threading.Thread):
         self.done = True
 
     def save_successful_analysis(self, md5sum, analysis_result):
-        self.queue.mark_as_analyzed(md5sum, True, analysis_result.analysis_version, analysis_result.message,
-                                    analysis_result.extended_message, score=analysis_result.score,
-                                    link=analysis_result.link)
+        self.database_arbiter.mark_as_analyzed(md5sum, True, analysis_result.analysis_version, analysis_result.message,
+                                               analysis_result.extended_message, score=analysis_result.score,
+                                               link=analysis_result.link)
+        log.info("Analyzed md5sum: %s - score %d%s. Refreshing feed." % (md5sum, analysis_result.score,
+                                                                         " (%s)" % analysis_result.message if analysis_result.message else ""))
         self.dirty_event.set()
 
     def save_unsuccessful_analysis(self, md5sum, e):
         if type(e) == AnalysisTemporaryError:
             retry_in_seconds = int(e.retry_in)
-            self.queue.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message,
-                                        retry_at=datetime.datetime.now()+datetime.timedelta(seconds=retry_in_seconds))
+            self.database_arbiter.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message,
+                                                   retry_at=datetime.datetime.now()+datetime.timedelta(seconds=retry_in_seconds))
             log.error("Temporary error analyzing md5sum %s: %s (%s). Will retry in %d seconds." % (md5sum,
                                                                                                    e.message,
                                                                                                    e.extended_message,
                                                                                                    retry_in_seconds))
         elif type(e) == AnalysisPermanentError:
-            self.queue.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message)
+            self.database_arbiter.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message)
             log.error("Permanent error analyzing md5sum %s: %s (%s)." % (md5sum,
                                                                          e.message,
                                                                          e.extended_message))
         else:
-            self.queue.mark_as_analyzed(md5sum, False, 0, "%s: %s" % (e.__class__.__name__, e.message),
+            self.database_arbiter.mark_as_analyzed(md5sum, False, 0, "%s: %s" % (e.__class__.__name__, e.message),
                                         "%s" % traceback.format_exc())
             log.error("Unknown error analyzing md5sum %s: %s (%s)." % (md5sum,
                                                                        e.__class__.__name__,
                                                                        e.message))
 
     def save_empty_quick_scan(self, md5sum):
-        self.queue.mark_quick_scan_complete(md5sum)
+        self.database_arbiter.mark_quick_scan_complete(md5sum)
 
 
 class QuickScanThread(BinaryConsumerThread):
@@ -251,12 +257,7 @@ class QuickScanThread(BinaryConsumerThread):
                                                                            extended_message=traceback.format_exc()))
 
     def run(self):
-        while not self.done:
-            md5sum = self.queue.get(sleep_wait=False, quick_scan=True)
-            if not md5sum:
-                sleep(.5)
-                continue
-
+        for md5sum in self.database_arbiter.binaries():
             try:
                 self.quick_scan(md5sum)
             except Exception as e:
@@ -272,6 +273,7 @@ class DeepAnalysisThread(BinaryConsumerThread):
                 self.save_successful_analysis(md5sum, res)
                 return
             # intentionally fall through if we return None from check_result_for...
+            log.debug("deep_analysis could not shortcut analysis of %s, proceeding..." % md5sum)
         except AnalysisTemporaryError as e:
             self.save_unsuccessful_analysis(md5sum, e)
         except AnalysisPermanentError as e:
@@ -284,7 +286,10 @@ class DeepAnalysisThread(BinaryConsumerThread):
         # we did not get a valid AnalysisResult from check_result_for, let's pull the binary down and scan it.
 
         try:
+            start_dl_time = time.time()
             z = StringIO(self.cb.binary(md5sum))
+            end_dl_time = time.time()
+            log.debug("%s: Took %0.3f seconds to download the file" % (md5sum, end_dl_time-start_dl_time))
         except Exception as e:
             self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Binary not available in Cb",
                                                                            retry_in=60))
@@ -311,12 +316,8 @@ class DeepAnalysisThread(BinaryConsumerThread):
             self.save_successful_analysis(md5sum, res)
 
     def run(self):
-        while not self.done:
-            md5sum = self.queue.get(sleep_wait=False)
-            if not md5sum:
-                sleep(.5)
-                continue
-
+        for md5sum in self.database_arbiter.binaries():
+            log.debug("deep_analysis retrieved md5sum %s from database_arbiter" % md5sum)
             try:
                 self.deep_analysis(md5sum)
             except Exception as e:

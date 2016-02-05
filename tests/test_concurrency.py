@@ -4,53 +4,54 @@ __author__ = 'jgarman'
 import threading
 from time import sleep
 import random
-from cbint.utils.detonation.binary_queue import SqliteFeedServer, SqliteQueue
+from cbint.utils.detonation.binary_queue import SqliteFeedServer, SqliteQueue, BinaryDatabaseArbiter, BinaryDatabaseController
 import datetime
 import string
 import unittest
 import tempfile
 import os
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
 
 class ConsumerThread(threading.Thread):
-    def __init__(self, work_queue):
+    def __init__(self, arbiter):
         threading.Thread.__init__(self)
-        self.queue = work_queue
+        self.daemon = True
+
+        self.arbiter = arbiter
         self.errors = []
         self.good = []
 
     def run(self):
-        done = False
-        while not done:
-            md5sum = self.queue.get(sleep_wait=False)
-            if not md5sum:
-                done = True
-                break
-
+        for md5sum in self.arbiter.binaries():
             # simulate processing
             sleep(random.random() * 0.05)
             if random.random() < 0.1:
                 # we errored out!
-                self.queue.mark_as_analyzed(md5sum, False, 1, "Error", "Longer error message",
-                                            retry_at=datetime.datetime.now() + datetime.timedelta(seconds=10))
+                self.arbiter.mark_as_analyzed(md5sum, False, 1, "Error", "Longer error message",
+                                              retry_at=datetime.datetime.now() + datetime.timedelta(seconds=10))
                 self.errors.append(md5sum)
             else:
-                self.queue.set_binary_available(md5sum)
-                self.queue.mark_as_analyzed(md5sum, True, 1, "bad stuff happened", "whoa", score=100)
+                self.arbiter.set_binary_available(md5sum)
+                self.arbiter.mark_as_analyzed(md5sum, True, 1, "bad stuff happened", "whoa", score=100)
                 self.good.append(md5sum)
 
 
 class ProducerThread(threading.Thread):
-    def __init__(self, work_queue, number_items):
+    def __init__(self, arbiter, number_items):
         threading.Thread.__init__(self)
-        self.queue = work_queue
+        self.daemon = True
+
+        self.arbiter = arbiter
         self.produced = []
         self.number_items = number_items
 
     def run(self):
         for i in xrange(self.number_items):
             md5sum = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(32))
-            self.queue.append(md5sum)
+            self.arbiter.notify_binary_available(md5sum)
             self.produced.append(md5sum)
 
 
@@ -68,9 +69,11 @@ class ConcurrencyTestCase(unittest.TestCase):
         consumer_threads = []
 
         self.work_queue.reprocess_on_restart() # handle things that were in-process when we died
+        db_controller = BinaryDatabaseController(self.work_queue)
+        db_controller.start()
 
         for i in range(10):
-            producer_threads.append(ProducerThread(self.work_queue, 20))
+            producer_threads.append(ProducerThread(db_controller.register("producer"), 20))
 
         for t in producer_threads:
             t.start()
@@ -78,7 +81,7 @@ class ConcurrencyTestCase(unittest.TestCase):
         sleep(0.1)
 
         for i in range(5):
-            consumer_threads.append(ConsumerThread(self.work_queue))
+            consumer_threads.append(ConsumerThread(db_controller.register("consumer")))
 
         for t in consumer_threads:
             t.start()
@@ -92,7 +95,6 @@ class ConcurrencyTestCase(unittest.TestCase):
         md5s_consumed = []
         for t in producer_threads:
             md5s_produced.extend(t.produced)
-
 
         for t in consumer_threads:
             md5s_consumed.extend(t.errors)
