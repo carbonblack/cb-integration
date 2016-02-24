@@ -52,6 +52,7 @@ class CbAPIProducerThread(threading.Thread):
         return "server_added_timestamp desc"
 
     def run(self):
+        log.info("Starting %s with start_time=%s" % (self.start_time_key, self.start_time))
         cur_timestamp = to_cb_time(self.start_time)
         self.queue.set_value(self.start_time_key, cur_timestamp)
 
@@ -176,6 +177,12 @@ class AnalysisResult(object):
         self.link = link
 
 
+class AnalysisInProgress(object):
+    def __init__(self, message="", retry_in=60):
+        self.message = message
+        self.retry_in = retry_in
+
+
 class BinaryAnalysisProvider(object):
     def __init__(self, name):
         self.name = name
@@ -272,6 +279,8 @@ class DeepAnalysisThread(BinaryConsumerThread):
             if type(res) == AnalysisResult:
                 self.save_successful_analysis(md5sum, res)
                 return
+            elif type(res) == AnalysisInProgress:
+                raise AnalysisTemporaryError(message=res.message, retry_in=res.retry_in)
             # intentionally fall through if we return None from check_result_for...
             log.debug("deep_analysis could not shortcut analysis of %s, proceeding..." % md5sum)
         except AnalysisTemporaryError as e:

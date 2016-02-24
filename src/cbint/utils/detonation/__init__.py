@@ -87,6 +87,14 @@ class DetonationDaemon(CbIntegrationDaemon):
     def filter_spec(self):
         return ''
 
+    @property
+    def historical_rate_limiter(self):
+        return 0.5
+
+    @property
+    def up_to_date_rate_limiter(self):
+        return 0.1
+
     def get_provider(self):
         raise IntegrationError("Integration did not provide a 'get_provider' function, which is required")
 
@@ -206,11 +214,11 @@ class DetonationDaemon(CbIntegrationDaemon):
 
         collectors.append(CbAPIHistoricalProducerThread(self.database_controller.register("producer"), self.cb, self.name,
                                                         sleep_between=self.get_config_integer('sleep_between_batches', 1200),
-                                                        rate_limiter=0.5, start_time=now,
+                                                        rate_limiter=self.historical_rate_limiter, start_time=now,
                                                         filter_spec=filter_spec)) # historical query
         collectors.append(CbAPIUpToDateProducerThread(self.database_controller.register("producer"), self.cb, self.name,
                                                       sleep_between=self.get_config_integer('sleep_between_batches', 30),
-                                                      start_time=now,
+                                                      rate_limiter=self.up_to_date_rate_limiter, start_time=now,
                                                       filter_spec=filter_spec)) # constantly up-to-date query
 
         if self.use_streaming:

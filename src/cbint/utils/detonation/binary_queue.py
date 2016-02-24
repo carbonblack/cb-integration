@@ -370,6 +370,8 @@ class SqliteQueue(object):
                 return results[0]
 
     def set_value(self, keyname, new_value):
+        log.info("Updating kvstore %s to %s" % (keyname, new_value))
+
         with self._get_conn() as conn:
             cursor = conn.execute("SELECT value FROM kv_store WHERE key=?", (keyname,))
             if cursor.fetchone():
