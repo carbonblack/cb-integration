@@ -72,6 +72,7 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.done = False
         self.feed_dirty = Event()
         self.feed_url = None
+        self.feed_base_url = None
 
     ### Start: Functions which must be overriden in subclasses of DetonationDaemon ###
 
@@ -128,9 +129,9 @@ class DetonationDaemon(CbIntegrationDaemon):
         else:
             self.use_streaming = False
 
-        self.feed_url = "http://%s:%d%s" % (self.get_config_string('feed_host', '127.0.0.1'),
-                                                                   self.get_config_integer('listener_port', 8080),
-                                                                   '/feed.json')
+        self.feed_base_url = "http://%s:%d" % (self.get_config_string('feed_host', '127.0.0.1'),
+                                               self.get_config_integer('listener_port', 8080))
+        self.feed_url = "%s%s" % (self.feed_base_url, '/feed.json')
 
         try:
             cbinfo = self.cb.info()
@@ -233,7 +234,7 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def start_feed_server(self, feed_metadata):
         self.feed_server = SqliteFeedServer(self.database_file, self.get_config_integer('listener_port', 8080),
-                                            feed_metadata,
+                                            feed_metadata, self.feed_base_url, self.work_directory,
                                             listener_address=self.get_config_string('listener_address', '0.0.0.0'))
         self.feed_server.start()
 

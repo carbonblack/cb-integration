@@ -1,5 +1,6 @@
 import Queue
 import os, sqlite3
+import re
 from time import sleep
 import threading
 import datetime
@@ -384,21 +385,44 @@ class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
     _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score,link FROM binary_data WHERE state=100'
 
-    def __init__(self, dbname, port_number, feed_metadata, listener_address='0.0.0.0'):
+    def __init__(self, dbname, port_number, feed_metadata, feed_base_url, work_directory, listener_address='0.0.0.0'):
         threading.Thread.__init__(self)
         self.daemon = True
         self.dbname = dbname
         self.port_number = port_number
         self.feed_metadata = feed_metadata
         self.listener_address = listener_address
+        self.feed_base_url = feed_base_url
+        self.work_directory = work_directory
 
         self.app = flask.Flask(__name__)
+        self.app.debug = False
+
         self.app.add_url_rule("/binaries.html", view_func=self.binary_results, methods=['GET'])
         self.app.add_url_rule("/feed.json", view_func=self.feed_content, methods=['GET'])
         self.app.add_url_rule("/", view_func=self.index, methods=['GET'])
+        self.app.add_url_rule("/reports/<string:report_id>", view_func=self.report_results, methods=["GET"])
+
+        self.valid_filename_regex = re.compile("^[A-Za-z0-9\-_\.]*$")
 
     def index(self):
-        return flask.Response("Nothing to see here")
+        return flask.redirect("/binaries.html")
+
+    def report_results(self, report_id):
+        if not self.valid_filename_regex.match(report_id):
+            flask.abort(404)
+        if "sqlite.db" in report_id:
+            flask.abort(404)
+
+        try:
+            fp = open(os.path.join(self.work_directory, report_id), 'rb')
+            fp.read()
+        except IOError:
+            flask.abort(404)
+        except Exception:
+            flask.abort(500)
+        else:
+            return flask.send_file(fp, mimetype='application/pdf')
 
     def feed_content(self):
         cur = self.conn.cursor()
@@ -410,10 +434,20 @@ class SqliteFeedServer(threading.Thread):
         for binary in binaries:
             # Only report binaries with a non-zero score
             if int(binary[5]) > 0:
+                if binary[6]:                # link present
+                    if binary[6].startswith("/reports/"):
+                        # a relative link. Build this at feed generation time
+                        link = self.feed_base_url + binary[6]
+                    else:
+                        # an absolute link. Pass along unchanged
+                        link = binary[6]
+                else:
+                    link = ''
+
                 feed_data['reports'].append({
                     'timestamp': int((dateutil.parser.parse(binary[1]) - epoch).total_seconds()),
                     'id': "Binary_%s" % binary[0],
-                    'link': binary[6] if binary[6] else '',
+                    'link': link,
                     'title': binary[2],
                     'score': binary[5],
                     'iocs': {  # TODO: merge iocs from the database
