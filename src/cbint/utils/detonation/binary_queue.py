@@ -410,13 +410,13 @@ class SqliteFeedServer(threading.Thread):
 
     def report_results(self, report_id):
         if not self.valid_filename_regex.match(report_id):
+            log.critical("Attempt to retrieve invalid report file '%s'" % report_id)
             flask.abort(404)
         if "sqlite.db" in report_id:
             flask.abort(404)
 
         try:
             fp = open(os.path.join(self.work_directory, report_id), 'rb')
-            fp.read()
         except IOError:
             flask.abort(404)
         except Exception:

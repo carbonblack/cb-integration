@@ -178,9 +178,11 @@ class AnalysisResult(object):
 
 
 class AnalysisInProgress(object):
-    def __init__(self, message="", retry_in=60):
+    def __init__(self, message="", extended_message="", retry_in=60, analysis_version=1):
         self.message = message
+        self.extended_message = extended_message
         self.retry_in = retry_in
+        self.analysis_version = analysis_version
 
 
 class BinaryAnalysisProvider(object):
