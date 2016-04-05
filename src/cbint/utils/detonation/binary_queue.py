@@ -422,6 +422,7 @@ class SqliteFeedServer(threading.Thread):
         except Exception:
             flask.abort(500)
         else:
+            fp.seek(0)
             return flask.send_file(fp, mimetype='application/pdf')
 
     def feed_content(self):
