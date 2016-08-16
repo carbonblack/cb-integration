@@ -1,7 +1,6 @@
 import threading
 import datetime
 import traceback
-from cbapi.util.messaging_helpers import QueuedCbSubscriber
 from time import sleep
 import json
 from zipfile import ZipFile
@@ -100,11 +99,11 @@ class CbAPIUpToDateProducerThread(CbAPIProducerThread):
     @property
     def query_string(self):
         if self.start_time:
-            return "server_added_timestamp:[%s TO *] -alliance_score_%s %s" % (to_cb_time(self.start_time),
-                                                                               self.feed_name,
-                                                                               self.filter_spec)
+            return "server_added_timestamp:[%s TO *] -alliance_score_%s:* %s" % (to_cb_time(self.start_time),
+                                                                                 self.feed_name,
+                                                                                 self.filter_spec)
         else:
-            return "-alliance_score_%s %s" % (self.feed_name, self.filter_spec)
+            return "-alliance_score_%s:* %s" % (self.feed_name, self.filter_spec)
 
     @property
     def query_sort(self):
@@ -128,24 +127,6 @@ class CbAPIHistoricalProducerThread(CbAPIProducerThread):
     @property
     def query_sort(self):
         return "server_added_timestamp desc"
-
-
-class CbStreamingProducerThread(QueuedCbSubscriber):
-    def __init__(self, queue, cb_server_address, rmq_username, rmq_password):
-        super(CbStreamingProducerThread, self).__init__(cb_server_address, rmq_username, rmq_password,
-                                                        "binarystore.file.added")
-        self.queue = queue
-        print 'streaming producer inited'
-
-    def consume_message(self, channel, method_frame, header_frame, body):
-        if header_frame.content_type != 'application/json':
-            return
-
-        msg = json.loads(body)
-        print 'got streaming msg: %s' % msg
-        if not self.queue.append(msg['md5'], file_available=True):
-            pass
-            # print 'md5 %s already tracked' % (msg['md5'],)
 
 
 class AnalysisPermanentError(Exception):
