@@ -3,7 +3,7 @@ __author__ = 'jgarman'
 from cbint.utils.daemon import CbIntegrationDaemon, ConfigurationError
 from cbint.utils.detonation.binary_queue import SqliteQueue, SqliteFeedServer, BinaryDatabaseController
 from cbint.utils.detonation.binary_analysis import (CbAPIHistoricalProducerThread, CbAPIUpToDateProducerThread,
-                                                    CbStreamingProducerThread, QuickScanThread,
+                                                    QuickScanThread,
                                                     DeepAnalysisThread)
 import cbint.utils.feed
 import cbint.utils.cbserver
@@ -222,10 +222,10 @@ class DetonationDaemon(CbIntegrationDaemon):
                                                       rate_limiter=self.up_to_date_rate_limiter, start_time=now,
                                                       filter_spec=filter_spec)) # constantly up-to-date query
 
-        if self.use_streaming:
-            # TODO: need filter_spec for streaming
-            collectors.append(CbStreamingProducerThread(self.database_controller.register("producer"), self.streaming_host, self.streaming_username,
-                                                        self.streaming_password))
+        # if self.use_streaming:
+        #     # TODO: need filter_spec for streaming
+        #     collectors.append(CbStreamingProducerThread(self.database_controller.register("producer"), self.streaming_host, self.streaming_username,
+        #                                                 self.streaming_password))
 
         for collector in collectors:
             collector.start()
