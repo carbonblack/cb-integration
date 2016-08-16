@@ -1,7 +1,7 @@
 __author__ = 'jgarman'
 
 from cbint.utils.daemon import CbIntegrationDaemon, ConfigurationError
-from cbint.utils.detonation.binary_queue import SqliteQueue, SqliteFeedServer
+from cbint.utils.detonation.binary_queue import SqliteQueue, SqliteFeedServer, BinaryDatabaseController
 from cbint.utils.detonation.binary_analysis import (CbAPIHistoricalProducerThread, CbAPIUpToDateProducerThread,
                                                     CbStreamingProducerThread, QuickScanThread,
                                                     DeepAnalysisThread)
@@ -72,6 +72,7 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.done = False
         self.feed_dirty = Event()
         self.feed_url = None
+        self.feed_base_url = None
 
     ### Start: Functions which must be overriden in subclasses of DetonationDaemon ###
 
@@ -86,6 +87,14 @@ class DetonationDaemon(CbIntegrationDaemon):
     @property
     def filter_spec(self):
         return ''
+
+    @property
+    def historical_rate_limiter(self):
+        return 0.5
+
+    @property
+    def up_to_date_rate_limiter(self):
+        return 0.1
 
     def get_provider(self):
         raise IntegrationError("Integration did not provide a 'get_provider' function, which is required")
@@ -120,9 +129,9 @@ class DetonationDaemon(CbIntegrationDaemon):
         else:
             self.use_streaming = False
 
-        self.feed_url = "http://%s:%d%s" % (self.get_config_string('feed_host', '127.0.0.1'),
-                                                                   self.get_config_integer('listener_port', 8080),
-                                                                   '/feed.json')
+        self.feed_base_url = "http://%s:%d" % (self.get_config_string('feed_host', '127.0.0.1'),
+                                               self.get_config_integer('listener_port', 8080))
+        self.feed_url = "%s%s" % (self.feed_base_url, '/feed.json')
 
         try:
             cbinfo = self.cb.info()
@@ -204,19 +213,19 @@ class DetonationDaemon(CbIntegrationDaemon):
         collectors = []
         now = datetime.datetime.utcnow()
 
-        collectors.append(CbAPIHistoricalProducerThread(self.work_queue, self.cb, self.name,
+        collectors.append(CbAPIHistoricalProducerThread(self.database_controller.register("producer"), self.cb, self.name,
                                                         sleep_between=self.get_config_integer('sleep_between_batches', 1200),
-                                                        rate_limiter=0.5, start_time=now,
+                                                        rate_limiter=self.historical_rate_limiter, start_time=now,
                                                         filter_spec=filter_spec)) # historical query
-        collectors.append(CbAPIUpToDateProducerThread(self.work_queue, self.cb, self.name,
+        collectors.append(CbAPIUpToDateProducerThread(self.database_controller.register("producer"), self.cb, self.name,
                                                       sleep_between=self.get_config_integer('sleep_between_batches', 30),
-                                                      start_time=now,
+                                                      rate_limiter=self.up_to_date_rate_limiter, start_time=now,
                                                       filter_spec=filter_spec)) # constantly up-to-date query
 
         if self.use_streaming:
             # TODO: need filter_spec for streaming
-            collectors.append(CbStreamingProducerThread(self.work_queue, self.streaming_host, self.streaming_username,
-                                      self.streaming_password))
+            collectors.append(CbStreamingProducerThread(self.database_controller.register("producer"), self.streaming_host, self.streaming_username,
+                                                        self.streaming_password))
 
         for collector in collectors:
             collector.start()
@@ -225,7 +234,7 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def start_feed_server(self, feed_metadata):
         self.feed_server = SqliteFeedServer(self.database_file, self.get_config_integer('listener_port', 8080),
-                                            feed_metadata,
+                                            feed_metadata, self.feed_base_url, self.work_directory,
                                             listener_address=self.get_config_string('listener_address', '0.0.0.0'))
         self.feed_server.start()
 
@@ -244,6 +253,8 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def run(self):
         work_queue = self.initialize_queue()
+        self.database_controller = BinaryDatabaseController(work_queue)
+        self.database_controller.start()
 
         # Import previous work, if enabled
         legacy_feed_directory = self.get_config_string("legacy_feed_directory", None)
@@ -254,11 +265,13 @@ class DetonationDaemon(CbIntegrationDaemon):
         consumer_threads = []
         provider = self.get_provider()
         for i in range(self.num_quick_scan_threads):
-            t = QuickScanThread(work_queue, self.cb, provider, dirty_event=self.feed_dirty)
+            database_arbiter = self.database_controller.register("consumer", quick_scan=True)
+            t = QuickScanThread(database_arbiter, self.cb, provider, dirty_event=self.feed_dirty)
             consumer_threads.append(t)
             t.start()
         for i in range(self.num_deep_scan_threads):
-            t = DeepAnalysisThread(work_queue, self.cb, provider, dirty_event=self.feed_dirty)
+            database_arbiter = self.database_controller.register("consumer", quick_scan=False)
+            t = DeepAnalysisThread(database_arbiter, self.cb, provider, dirty_event=self.feed_dirty)
             consumer_threads.append(t)
             t.start()
 

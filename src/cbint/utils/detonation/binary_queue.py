@@ -1,23 +1,132 @@
-__author__ = 'jgarman'
-
+import Queue
 import os, sqlite3
+import re
 from time import sleep
 import threading
 import datetime
 import flask
+
 try:
     import simplejson as json
 except ImportError:
     import json
 import copy
 import logging
-import time
 from cbint.utils.templates import binary_template
 import dateutil.parser
 
-
-epoch = datetime.datetime(1970,1,1)
+epoch = datetime.datetime(1970, 1, 1)
 log = logging.getLogger(__name__)
+
+notification_queue = Queue.Queue(maxsize=10)
+
+
+class BinaryDatabaseArbiter(object):
+    def __init__(self, binary_queue, subscriber_id, notification_source, queue):
+        self.binary_queue = binary_queue
+        self.subscriber_id = subscriber_id
+        self.notification_source = notification_source
+        self.result_queue = queue
+
+    def binaries(self):
+        while True:
+            notification_queue.put(self.subscriber_id)
+            md5sum = self.result_queue.get()
+            log.debug("database_arbiter returning md5sum %s to subscriber %d" % (md5sum, self.subscriber_id))
+            yield md5sum
+            self.result_queue.task_done()
+
+    def notify_binary_available(self, md5sum):
+        self.binary_queue.append(md5sum)
+        notification_queue.put(self.subscriber_id)
+
+    def mark_as_analyzed(self, *args, **kwargs):
+        self.binary_queue.mark_as_analyzed(*args, **kwargs)
+
+    def mark_quick_scan_complete(self, *args, **kwargs):
+        self.binary_queue.mark_quick_scan_complete(*args, **kwargs)
+
+    def get_value(self, *args, **kwargs):
+        return self.binary_queue.get_value(*args, **kwargs)
+
+    def set_value(self, *args, **kwargs):
+        return self.binary_queue.set_value(*args, **kwargs)
+
+
+class BinaryDatabaseController(threading.Thread):
+    def __init__(self, binary_queue):
+        super(BinaryDatabaseController, self).__init__()
+        self.binary_queue = binary_queue
+        self.subscribers = []
+        self.subscriber_id = 0
+        self.waiting = []
+        self.binaries_available = True
+        self.last_binary_check = datetime.datetime.now()
+        self.timeout_period = datetime.timedelta(minutes=1)
+
+    def register(self, notification_source, quick_scan=False):
+        this_subscriber = self.subscriber_id
+        queue = Queue.Queue()
+        self.subscribers.append({"queue": queue, "notification_source": notification_source,
+                                             "quick_scan": quick_scan})
+        self.subscriber_id += 1
+
+        log.debug("Registered notification source %s - got id %d" % (notification_source, this_subscriber))
+
+        return BinaryDatabaseArbiter(self.binary_queue, this_subscriber, notification_source, queue)
+
+    def return_binary(self, subscriber_id):
+        subscriber = self.subscribers[subscriber_id]
+        md5sum = self.binary_queue.get(sleep_wait=False, quick_scan=subscriber["quick_scan"])
+        if not md5sum:
+            log.debug("return_binary: No binary available, setting binaries_available to false")
+            self.waiting.insert(0, subscriber_id)
+            self.binaries_available = False
+            return None
+        else:
+            log.debug("return_binary: Binary returned: %s" % md5sum)
+            return md5sum
+
+    def run(self):
+        while True:
+            if datetime.datetime.now() - self.last_binary_check > self.timeout_period:
+                # every minute or so, just see if there are binaries available in the database anyway
+                log.debug("Binary timeout period elapsed; forcing database check")
+                self.binaries_available = True
+                self.last_binary_check = datetime.datetime.now()
+
+            if self.waiting and self.binaries_available:
+                subscriber_id = self.waiting.pop()
+                md5sum = self.return_binary(subscriber_id)
+                if md5sum:
+                    self.subscribers[subscriber_id]["queue"].put(md5sum)
+                    self.last_binary_check = datetime.datetime.now()
+                    continue
+
+            try:
+                subscriber_id = notification_queue.get(timeout=1)
+            except Queue.Empty:
+                # log.debug("Notification Queue empty, returning to top")
+                continue
+            except Exception:
+                # log exception
+                continue
+
+            notification_queue.task_done()
+
+            try:
+                subscriber_id = int(subscriber_id)
+                subscriber = self.subscribers[subscriber_id]
+                if subscriber["notification_source"] == "producer":
+                    # notifying that we have a new binary available
+                    self.binaries_available = True
+                    self.last_binary_check = datetime.datetime.now()
+                elif subscriber["notification_source"] == "consumer":
+                    log.debug("Consumer %d waiting for binary" % subscriber_id)
+                    self.waiting.insert(0, subscriber_id)
+            except Exception:
+                # log exception
+                continue
 
 
 class SqliteQueue(object):
@@ -61,10 +170,10 @@ class SqliteQueue(object):
     )
     _write_lock = 'BEGIN IMMEDIATE'
     _popleft_get = (
-            'SELECT md5sum FROM binary_data WHERE state = 0 AND (next_attempt_at < ? OR next_attempt_at IS NULL) '
-            'AND retry_count < ? '
-            'ORDER BY binary_available_since DESC,next_attempt_at ASC LIMIT 1'
-            )
+        'SELECT md5sum FROM binary_data WHERE state = 0 AND (next_attempt_at < ? OR next_attempt_at IS NULL) '
+        'AND retry_count < ? '
+        'ORDER BY binary_available_since DESC,next_attempt_at ASC LIMIT 1'
+    )
     _quickscan_get = (
         'SELECT md5sum FROM binary_data WHERE state = 0 AND quick_scan_done = 0 AND retry_count < ? LIMIT 1'
     )
@@ -108,7 +217,7 @@ class SqliteQueue(object):
         id = threading.current_thread().ident
         if id not in self._connection_cache:
             self._connection_cache[id] = sqlite3.Connection(self.path,
-                    timeout=60)
+                                                            timeout=60)
             self._connection_cache[id].row_factory = sqlite3.Row
         return self._connection_cache[id]
 
@@ -127,7 +236,7 @@ class SqliteQueue(object):
             try:
                 conn.execute(self._append, (md5sum, now, now))
             except sqlite3.IntegrityError:
-                conn.commit() # unlock the database
+                conn.commit()  # unlock the database
                 created = False
             else:
                 created = True
@@ -175,7 +284,7 @@ class SqliteQueue(object):
                 cur = conn.cursor()
                 cur.execute("SELECT retry_count FROM binary_data WHERE md5sum=?", (md5sum,))
                 (current_retry_count,) = cur.fetchone()
-                conn.execute("UPDATE binary_data SET retry_count=? WHERE md5sum=?", (current_retry_count+1,md5sum))
+                conn.execute("UPDATE binary_data SET retry_count=? WHERE md5sum=?", (current_retry_count + 1, md5sum))
             conn.execute(self._update_binary_state, (datetime.datetime.now(), str(retry_at), str(short_result),
                                                      str(long_result), int(score), state, analysis_version,
                                                      link, iocs, md5sum))
@@ -206,23 +315,26 @@ class SqliteQueue(object):
                 if quick_scan:
                     cursor = conn.execute(self._quickscan_get, (self.max_retry_count,))
                 else:
-                    cursor = conn.execute(self._popleft_get, (datetime.datetime.now(),self.max_retry_count))
+                    cursor = conn.execute(self._popleft_get, (datetime.datetime.now(), self.max_retry_count))
 
                 try:
                     md5sum, = cursor.next()
                     keep_pooling = False
                 except StopIteration:
-                    conn.commit() # unlock the database
+                    conn.commit()  # unlock the database
                     if not sleep_wait:
                         keep_pooling = False
                         continue
                     tries += 1
                     sleep(wait)
-                    wait = min(max_wait, tries/10 + wait)
-            if md5sum:
-                conn.execute(self._update_queue, (datetime.datetime.now(), md5sum))
-                conn.commit()
-                return md5sum
+                    wait = min(max_wait, tries / 10 + wait)
+                except Exception:
+                    conn.commit()
+                    # TODO: log the exception
+                else:
+                    conn.execute(self._update_queue, (datetime.datetime.now(), md5sum))
+                    conn.commit()
+                    return md5sum
         return None
 
     def reprocess_on_restart(self):
@@ -259,6 +371,8 @@ class SqliteQueue(object):
                 return results[0]
 
     def set_value(self, keyname, new_value):
+        log.info("Updating kvstore %s to %s" % (keyname, new_value))
+
         with self._get_conn() as conn:
             cursor = conn.execute("SELECT value FROM kv_store WHERE key=?", (keyname,))
             if cursor.fetchone():
@@ -271,21 +385,45 @@ class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
     _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score,link FROM binary_data WHERE state=100'
 
-    def __init__(self, dbname, port_number, feed_metadata, listener_address='0.0.0.0'):
+    def __init__(self, dbname, port_number, feed_metadata, feed_base_url, work_directory, listener_address='0.0.0.0'):
         threading.Thread.__init__(self)
         self.daemon = True
         self.dbname = dbname
         self.port_number = port_number
         self.feed_metadata = feed_metadata
         self.listener_address = listener_address
+        self.feed_base_url = feed_base_url
+        self.work_directory = work_directory
 
         self.app = flask.Flask(__name__)
+        self.app.debug = False
+
         self.app.add_url_rule("/binaries.html", view_func=self.binary_results, methods=['GET'])
         self.app.add_url_rule("/feed.json", view_func=self.feed_content, methods=['GET'])
         self.app.add_url_rule("/", view_func=self.index, methods=['GET'])
+        self.app.add_url_rule("/reports/<string:report_id>", view_func=self.report_results, methods=["GET"])
+
+        self.valid_filename_regex = re.compile("^[A-Za-z0-9\-_\.]*$")
 
     def index(self):
-        return flask.Response("Nothing to see here")
+        return flask.redirect("/binaries.html")
+
+    def report_results(self, report_id):
+        if not self.valid_filename_regex.match(report_id):
+            log.critical("Attempt to retrieve invalid report file '%s'" % report_id)
+            flask.abort(404)
+        if "sqlite.db" in report_id:
+            flask.abort(404)
+
+        try:
+            fp = open(os.path.join(self.work_directory, report_id), 'rb')
+        except IOError:
+            flask.abort(404)
+        except Exception:
+            flask.abort(500)
+        else:
+            fp.seek(0)
+            return flask.send_file(fp, mimetype='application/pdf')
 
     def feed_content(self):
         cur = self.conn.cursor()
@@ -297,13 +435,23 @@ class SqliteFeedServer(threading.Thread):
         for binary in binaries:
             # Only report binaries with a non-zero score
             if int(binary[5]) > 0:
+                if binary[6]:                # link present
+                    if binary[6].startswith("/reports/"):
+                        # a relative link. Build this at feed generation time
+                        link = self.feed_base_url + binary[6]
+                    else:
+                        # an absolute link. Pass along unchanged
+                        link = binary[6]
+                else:
+                    link = ''
+
                 feed_data['reports'].append({
                     'timestamp': int((dateutil.parser.parse(binary[1]) - epoch).total_seconds()),
                     'id': "Binary_%s" % binary[0],
-                    'link': binary[6] if binary[6] else '',
+                    'link': link,
                     'title': binary[2],
                     'score': binary[5],
-                    'iocs': {                # TODO: merge iocs from the database
+                    'iocs': {  # TODO: merge iocs from the database
                         'md5': [
                             binary[0],
                         ]
