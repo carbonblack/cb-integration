@@ -118,11 +118,11 @@ class CbAPIHistoricalProducerThread(CbAPIProducerThread):
     @property
     def query_string(self):
         if self.start_time:
-            return "server_added_timestamp:[* TO %s] -alliance_score_%s %s" % (to_cb_time(self.start_time),
-                                                                               self.feed_name,
-                                                                               self.filter_spec)
+            return "server_added_timestamp:[* TO %s] -alliance_score_%s:* %s" % (to_cb_time(self.start_time),
+                                                                                 self.feed_name,
+                                                                                 self.filter_spec)
         else:
-            return "-alliance_score_%s %s" % (self.feed_name, self.filter_spec)
+            return "-alliance_score_%s:* %s" % (self.feed_name, self.filter_spec)
 
     @property
     def query_sort(self):
