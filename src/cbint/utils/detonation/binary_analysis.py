@@ -209,7 +209,7 @@ class BinaryConsumerThread(threading.Thread):
         if type(e) == AnalysisTemporaryError:
             retry_in_seconds = int(e.retry_in)
             self.database_arbiter.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message,
-                                                   retry_at=datetime.datetime.now()+datetime.timedelta(seconds=retry_in_seconds))
+                                                   retry_at=datetime.datetime.utcnow()+datetime.timedelta(seconds=retry_in_seconds))
             log.error("Temporary error analyzing md5sum %s: %s (%s). Will retry in %d seconds." % (md5sum,
                                                                                                    e.message,
                                                                                                    e.extended_message,

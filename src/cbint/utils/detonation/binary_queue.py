@@ -61,7 +61,7 @@ class BinaryDatabaseController(threading.Thread):
         self.subscriber_id = 0
         self.waiting = []
         self.binaries_available = True
-        self.last_binary_check = datetime.datetime.now()
+        self.last_binary_check = datetime.datetime.utcnow()
         self.timeout_period = datetime.timedelta(minutes=1)
 
     def register(self, notification_source, quick_scan=False):
@@ -89,18 +89,18 @@ class BinaryDatabaseController(threading.Thread):
 
     def run(self):
         while True:
-            if datetime.datetime.now() - self.last_binary_check > self.timeout_period:
+            if datetime.datetime.utcnow() - self.last_binary_check > self.timeout_period:
                 # every minute or so, just see if there are binaries available in the database anyway
                 log.debug("Binary timeout period elapsed; forcing database check")
                 self.binaries_available = True
-                self.last_binary_check = datetime.datetime.now()
+                self.last_binary_check = datetime.datetime.utcnow()
 
             if self.waiting and self.binaries_available:
                 subscriber_id = self.waiting.pop()
                 md5sum = self.return_binary(subscriber_id)
                 if md5sum:
                     self.subscribers[subscriber_id]["queue"].put(md5sum)
-                    self.last_binary_check = datetime.datetime.now()
+                    self.last_binary_check = datetime.datetime.utcnow()
                     continue
 
             try:
@@ -120,7 +120,7 @@ class BinaryDatabaseController(threading.Thread):
                 if subscriber["notification_source"] == "producer":
                     # notifying that we have a new binary available
                     self.binaries_available = True
-                    self.last_binary_check = datetime.datetime.now()
+                    self.last_binary_check = datetime.datetime.utcnow()
                 elif subscriber["notification_source"] == "consumer":
                     log.debug("Consumer %d waiting for binary" % subscriber_id)
                     self.waiting.insert(0, subscriber_id)
@@ -190,7 +190,7 @@ class SqliteQueue(object):
     _count_by_state = 'SELECT COUNT(*) FROM binary_data WHERE state = ?'
     _quick_scan_complete = "UPDATE binary_data SET quick_scan_done=1, state=0 WHERE md5sum = ?"
 
-    _current_db_version = 6
+    _current_db_version = 7
 
     def __init__(self, path, max_retry_count=10):
         self.path = os.path.abspath(path)
@@ -231,7 +231,7 @@ class SqliteQueue(object):
 
     def append(self, md5sum, file_available=False):
         # returns True if a new item was created, False otherwise
-        now = datetime.datetime.now()
+        now = datetime.datetime.utcnow()
         with self._get_conn() as conn:
             try:
                 conn.execute(self._append, (md5sum, now, now))
@@ -247,7 +247,7 @@ class SqliteQueue(object):
         return created
 
     def set_binary_available(self, md5sum, as_of=None):
-        now = datetime.datetime.now()
+        now = datetime.datetime.utcnow()
         if not as_of:
             as_of = now
         with self._get_conn() as conn:
@@ -277,7 +277,7 @@ class SqliteQueue(object):
 
         # print "%s analyzing %s with score %d" % ("Success" if succeeded else "Failed", md5sum, score)
         # if not succeeded:
-        #     print datetime.datetime.now(), retry_at, short_result, long_result, score, state, analysis_version, md5sum
+        #     print datetime.datetime.utcnow(), retry_at, short_result, long_result, score, state, analysis_version, md5sum
 
         with self._get_conn() as conn:
             if not succeeded:
@@ -285,7 +285,7 @@ class SqliteQueue(object):
                 cur.execute("SELECT retry_count FROM binary_data WHERE md5sum=?", (md5sum,))
                 (current_retry_count,) = cur.fetchone()
                 conn.execute("UPDATE binary_data SET retry_count=? WHERE md5sum=?", (current_retry_count + 1, md5sum))
-            conn.execute(self._update_binary_state, (datetime.datetime.now(), str(retry_at), str(short_result),
+            conn.execute(self._update_binary_state, (datetime.datetime.utcnow(), str(retry_at), str(short_result),
                                                      str(long_result), int(score), state, analysis_version,
                                                      link, iocs, md5sum))
 
@@ -315,7 +315,7 @@ class SqliteQueue(object):
                 if quick_scan:
                     cursor = conn.execute(self._quickscan_get, (self.max_retry_count,))
                 else:
-                    cursor = conn.execute(self._popleft_get, (datetime.datetime.now(), self.max_retry_count))
+                    cursor = conn.execute(self._popleft_get, (datetime.datetime.utcnow(), self.max_retry_count))
 
                 try:
                     md5sum, = cursor.next()
@@ -332,7 +332,7 @@ class SqliteQueue(object):
                     conn.commit()
                     # TODO: log the exception
                 else:
-                    conn.execute(self._update_queue, (datetime.datetime.now(), md5sum))
+                    conn.execute(self._update_queue, (datetime.datetime.utcnow(), md5sum))
                     conn.commit()
                     return md5sum
         return None
@@ -360,6 +360,38 @@ class SqliteQueue(object):
             if old_version < 6:
                 conn.execute("ALTER TABLE binary_data ADD COLUMN link TEXT")
                 conn.execute("UPDATE feed_data SET database_version=6")
+
+            if old_version < 7:
+                computed_time_difference = datetime.datetime.utcnow() - datetime.datetime.now()
+                computed_hours = round(computed_time_difference.total_seconds() / 3600, 1)
+
+                log.info("Attempting to migrate timestamps from old database from localtime to GMT")
+                log.info("This conversion is approximate and will shift timestamps stored in the database by %f hours" % computed_hours)
+                log.info("")
+                log.info("if there are errors, re-initialize the database by removing the file")
+                log.info(self.path)
+                log.info("and restart the service")
+
+                self._migrate_timestamps(conn, computed_time_difference)
+                conn.execute("UPDATE feed_data SET database_version=7")
+
+    def _migrate_timestamps(self, conn, time_shift):
+        rows = list(conn.execute("SELECT md5sum,last_modified,inserted_at,next_attempt_at,binary_available_since FROM binary_data"))
+        for row in rows:
+            new_timestamp = []
+            for i in range(1, 5):
+                dt = None
+                try:
+                    dt = dateutil.parser.parse(row[i])
+                    dt += time_shift
+                except ValueError:
+                    pass
+                except Exception as e:
+                    log.exception("Could not convert %s to date/time stamp for md5sum %s" % (row[i], row[0]))
+
+                new_timestamp.append(dt)
+            conn.execute("UPDATE binary_data SET last_modified = ?, inserted_at = ?, next_attempt_at = ?, binary_available_since = ? WHERE md5sum = ?",
+                         (new_timestamp[0], new_timestamp[1], new_timestamp[2], new_timestamp[3], row[0]))
 
     def get_value(self, keyname, default=None):
         with self._get_conn() as conn:
