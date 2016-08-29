@@ -381,13 +381,12 @@ class SqliteQueue(object):
             new_timestamp = []
             for i in range(1, 5):
                 dt = None
-                try:
-                    dt = dateutil.parser.parse(row[i])
-                    dt += time_shift
-                except ValueError:
-                    pass
-                except Exception as e:
-                    log.exception("Could not convert %s to date/time stamp for md5sum %s" % (row[i], row[0]))
+                if row[i] is not None:
+                    try:
+                        dt = dateutil.parser.parse(row[i])
+                        dt += time_shift
+                    except Exception as e:
+                        log.exception("Could not convert %s to date/time stamp for md5sum %s" % (row[i], row[0]))
 
                 new_timestamp.append(dt)
             conn.execute("UPDATE binary_data SET last_modified = ?, inserted_at = ?, next_attempt_at = ?, binary_available_since = ? WHERE md5sum = ?",
