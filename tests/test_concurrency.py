@@ -31,7 +31,7 @@ class ConsumerThread(threading.Thread):
             if random.random() < 0.1:
                 # we errored out!
                 self.arbiter.mark_as_analyzed(md5sum, False, 1, "Error", "Longer error message",
-                                              retry_at=datetime.datetime.now() + datetime.timedelta(seconds=10))
+                                              retry_at=datetime.datetime.utcnow() + datetime.timedelta(seconds=10))
                 self.errors.append(md5sum)
             else:
                 self.arbiter.set_binary_available(md5sum)
