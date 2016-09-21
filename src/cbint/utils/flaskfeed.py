@@ -58,7 +58,16 @@ class FlaskFeed(object):
                 feed_copy['feedinfo'][key] = feed['feedinfo'][key]
         feed_copy['feedinfo']['num_reports'] = len(feed['reports'])
 
-        return flask.render_template_string(index_template, options=options, feed=feed_copy,
+        options_copy = {}
+        for key in options:
+            if key == "carbonblack_server_token":
+                continue
+            elif key == "listener_api_token":
+                continue
+            else:
+                options_copy[key] = options[key]
+
+        return flask.render_template_string(index_template, options=options_copy, feed=feed_copy,
                                      integration_name=integration_name, integration_image_path=integration_image_path,
                                      cb_image_path=cb_image_path, json_feed_path=json_feed_path, last_sync=last_sync)
 
