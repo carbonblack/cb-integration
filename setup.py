@@ -1,21 +1,14 @@
 #!/usr/bin/env python
 
-import sys
-
-sys.path.insert(0, "src/")
-
-# TODO: fix version handling...
-version="5.1.0.15137"
-
 from setuptools import setup
 
 setup(
-    name='python-cb-integration',
-    version=version,
-    url='http://www.bit9.com/',
+    name='cbint',
+    version='0.8.1',
+    url='http://www.carbonblack.com/',
     license='MIT',
     author='Carbon Black',
-    author_email='dev-support@bit9.com',
+    author_email='dev-support@carbonblack.com',
     description='Carbon Black Integration Library',
     long_description=__doc__,
     packages=['cbint', 'cbint.utils', 'cbint.utils.detonation'],
@@ -25,10 +18,9 @@ setup(
     classifiers=[
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
-        'License :: MIT',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
-    install_requires=['flask', 'python-dateutil', 'netifaces']
+    install_requires=['flask', 'python-dateutil', 'netifaces', 'cbapi==0.8.0', 'cbfeeds==0.8.0']
 )
