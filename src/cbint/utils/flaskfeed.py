@@ -1,25 +1,34 @@
 import os
 import io
 import flask
+import logging
 
 import cbint.utils.json
 from cbint.utils.templates import index_template, feed_template
 
+logger = logging.getLogger(__name__)
+
 class FlaskFeed(object):
 
-    def __init__(self, import_name, use_wgsi_body_helper=False, template_folder=None):
+    def __init__(self, import_name, cert_file=None, key_file=None, template_folder=None):
 
         self.local_dir = os.path.dirname(os.path.realpath(__file__))
         self.app = flask.Flask(import_name)
-        if use_wgsi_body_helper:
-            self.app.wsgi_app = WSGICopyBody(self.app.wsgi_app)
 
-    def run(self, host, port, debug):
+        self.cert_file = cert_file
+        self.key_file = key_file
+
+    def run(self, host, port, debug=False):
         """
         runs the flask server
         """
 
-        self.app.run(host=host, port=port, debug=debug, use_reloader=False)
+        if self.cert_file and self.key_file:
+            context = (self.cert_file, self.key_file)
+        else:
+            context = None
+
+        self.app.run(host=host, port=port, ssl_context=context, debug=False, use_reloader=False)
 
     def generate_json_feed(self, feed):
         """
@@ -83,34 +92,3 @@ class FlaskFeed(object):
                 return flask.send_file(io.BytesIO(f.read()))
             except:
                 flask.abort(404)
-
-
-# The FireEye device is nice enough to set Content-Type to
-# application/x-www-form-urlencoded, but _not actually encode the
-# post request!  this causes flask some problems as it tries to
-# decode the data (and does) but in the process un-jsonifies it.
-#
-# this helper is here to allow raw access to the underlying request
-#
-# see stackoverflow.com/questions/10999990/get-raw-post-body
-#
-# UPDATE: This appears to be fixed as of FireEye rev 7.0.1 or 7.0.2
-#
-class WSGICopyBody(object):
-    def __init__(self, application):
-        self.application = application
-
-    def __call__(self, environ, start_response):
-        from cStringIO import StringIO
-        length = environ.get('CONTENT_LENGTH', '0')
-        length = 0 if length == '' else int(length)
-        body = environ['wsgi.input'].read(length)
-        environ['body_copy'] = body
-        environ['wsgi.input'] = StringIO(body)
-        app_iter = self.application(environ, self._sr_callback(start_response))
-        return app_iter
-
-    def _sr_callback(self, start_response):
-        def callback(status, headers, exc_info=None):
-            start_response(status, headers, exc_info)
-        return callback
