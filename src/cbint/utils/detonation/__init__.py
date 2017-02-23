@@ -129,8 +129,16 @@ class DetonationDaemon(CbIntegrationDaemon):
         else:
             self.use_streaming = False
 
-        self.feed_base_url = "http://%s:%d" % (self.get_config_string('feed_host', '127.0.0.1'),
-                                               self.get_config_integer('listener_port', 8080))
+        self.cert_file = self.get_config_string('cert_file')
+        self.key_file = self.get_config_string('key_file')
+
+        if self.key_file and self.cert_file:
+            self.feed_base_url = "https://%s:%d" % (self.get_config_string('feed_host', '127.0.0.1'),
+                                                   self.get_config_integer('listener_port', 8080))
+        else:
+            self.feed_base_url = "http://%s:%d" % (self.get_config_string('feed_host', '127.0.0.1'),
+                                                   self.get_config_integer('listener_port', 8080))
+
         self.feed_url = "%s%s" % (self.feed_base_url, '/feed.json')
 
         try:
@@ -233,8 +241,13 @@ class DetonationDaemon(CbIntegrationDaemon):
         return collectors
 
     def start_feed_server(self, feed_metadata):
-        self.feed_server = SqliteFeedServer(self.database_file, self.get_config_integer('listener_port', 8080),
-                                            feed_metadata, self.feed_base_url, self.work_directory,
+        self.feed_server = SqliteFeedServer(self.database_file,
+                                            self.get_config_integer('listener_port', 8080),
+                                            feed_metadata,
+                                            self.feed_base_url,
+                                            self.work_directory,
+                                            cert_file=self.cert_file,
+                                            key_file=self.key_file,
                                             listener_address=self.get_config_string('listener_address', '0.0.0.0'))
         self.feed_server.start()
 

@@ -5,6 +5,7 @@ from time import sleep
 import threading
 import datetime
 import flask
+import traceback
 
 try:
     import simplejson as json
@@ -416,7 +417,7 @@ class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
     _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score,link FROM binary_data WHERE state=100'
 
-    def __init__(self, dbname, port_number, feed_metadata, feed_base_url, work_directory, listener_address='0.0.0.0'):
+    def __init__(self, dbname, port_number, feed_metadata, feed_base_url, work_directory, cert_file=None, key_file=None, listener_address='0.0.0.0'):
         threading.Thread.__init__(self)
         self.daemon = True
         self.dbname = dbname
@@ -425,6 +426,9 @@ class SqliteFeedServer(threading.Thread):
         self.listener_address = listener_address
         self.feed_base_url = feed_base_url
         self.work_directory = work_directory
+
+        self.cert_file = cert_file
+        self.key_file = key_file
 
         self.app = flask.Flask(__name__)
         self.app.debug = False
@@ -501,4 +505,18 @@ class SqliteFeedServer(threading.Thread):
         self.conn = sqlite3.Connection(self.dbname, timeout=60)
         self.conn.row_factory = sqlite3.Row
 
-        self.app.run(host=self.listener_address, port=self.port_number, debug=True, use_reloader=False)
+
+        try:
+            if self.cert_file and self.key_file:
+                context = (self.cert_file, self.key_file)
+            else:
+                context = None
+
+            self.app.run(host=self.listener_address,
+                         port=self.port_number,
+                         ssl_context=context,
+                         debug=False,
+                         use_reloader=False)
+
+        except:
+            log.info(traceback.format_exc())
