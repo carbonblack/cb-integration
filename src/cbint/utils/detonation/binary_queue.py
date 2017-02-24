@@ -171,12 +171,15 @@ class SqliteQueue(object):
     )
     _write_lock = 'BEGIN IMMEDIATE'
     _popleft_get = (
-        'SELECT md5sum FROM binary_data WHERE state = 0 AND (next_attempt_at < ? OR next_attempt_at IS NULL) '
+        'SELECT md5sum FROM binary_data WHERE (state = 0 OR ((julianday(\'?\') - julianday(last_modified)) > ?) ) '
+        'AND (next_attempt_at < ? OR next_attempt_at IS NULL) '
         'AND retry_count < ? '
         'ORDER BY binary_available_since DESC,next_attempt_at ASC LIMIT 1'
     )
     _quickscan_get = (
-        'SELECT md5sum FROM binary_data WHERE state = 0 AND quick_scan_done = 0 AND retry_count < ? LIMIT 1'
+        'SELECT md5sum FROM binary_data WHERE ( ( state = 0 AND quick_scan_done = 0 ) '
+        'OR ((julianday(\'?\') - julianday(last_modified)) > ?) ) '
+        'AND retry_count < ? LIMIT 1'
     )
     _update_queue = 'UPDATE binary_data SET state=50,last_modified = ? WHERE md5sum = ?'
     _all_analyzed = 'SELECT * FROM binary_data WHERE state = 100'
@@ -193,10 +196,11 @@ class SqliteQueue(object):
 
     _current_db_version = 7
 
-    def __init__(self, path, max_retry_count=10):
+    def __init__(self, path, max_retry_count=10, num_days_before_rescan=365):
         self.path = os.path.abspath(path)
         self._connection_cache = {}
         self.max_retry_count = max_retry_count
+        self.num_days_before_rescan = num_days_before_rescan
 
         with self._get_conn() as conn:
             conn.execute(self._create_queue)
@@ -286,6 +290,8 @@ class SqliteQueue(object):
                 cur.execute("SELECT retry_count FROM binary_data WHERE md5sum=?", (md5sum,))
                 (current_retry_count,) = cur.fetchone()
                 conn.execute("UPDATE binary_data SET retry_count=? WHERE md5sum=?", (current_retry_count + 1, md5sum))
+            else:
+                conn.execute("UPDATE binary_data SET retry_count=0 WHERE md5sum=?", (md5sum,))
             conn.execute(self._update_binary_state, (datetime.datetime.utcnow(), str(retry_at), str(short_result),
                                                      str(long_result), int(score), state, analysis_version,
                                                      link, iocs, md5sum))
@@ -314,9 +320,12 @@ class SqliteQueue(object):
             while keep_pooling:
                 conn.execute(self._write_lock)
                 if quick_scan:
-                    cursor = conn.execute(self._quickscan_get, (self.max_retry_count,))
+                    cursor = conn.execute(self._quickscan_get,
+                                          (datetime.datetime.utcnow(), self.num_days_before_rescan, self.max_retry_count))
                 else:
-                    cursor = conn.execute(self._popleft_get, (datetime.datetime.utcnow(), self.max_retry_count))
+                    cursor = conn.execute(self._popleft_get, (
+                    datetime.datetime.utcnow(), self.num_days_before_rescan, datetime.datetime.now(),
+                    self.max_retry_count))
 
                 try:
                     md5sum, = cursor.next()
