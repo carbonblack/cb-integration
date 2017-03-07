@@ -98,7 +98,6 @@ class BinaryDatabaseController(threading.Thread):
                     self.last_binary_check = datetime.datetime.utcnow()
 
                 if self.waiting and self.binaries_available:
-                    log.info("waiting and binaries available")
                     subscriber_id = self.waiting.pop()
                     md5sum = self.return_binary(subscriber_id)
                     if md5sum:
