@@ -73,6 +73,7 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.feed_dirty = Event()
         self.feed_url = None
         self.feed_base_url = None
+        self.days_rescan = 365
 
     ### Start: Functions which must be overriden in subclasses of DetonationDaemon ###
 
@@ -140,6 +141,9 @@ class DetonationDaemon(CbIntegrationDaemon):
                                                    self.get_config_integer('listener_port', 8080))
 
         self.feed_url = "%s%s" % (self.feed_base_url, '/feed.json')
+
+        if self.cfg.has_option('bridge', 'days_rescan'):
+            self.days_rescan = self.get_config_integer('days_rescan', 365)
 
         try:
             cbinfo = self.cb.info()

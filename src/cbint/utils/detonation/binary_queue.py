@@ -89,45 +89,49 @@ class BinaryDatabaseController(threading.Thread):
             return md5sum
 
     def run(self):
-        while True:
-            if datetime.datetime.utcnow() - self.last_binary_check > self.timeout_period:
-                # every minute or so, just see if there are binaries available in the database anyway
-                log.debug("Binary timeout period elapsed; forcing database check")
-                self.binaries_available = True
-                self.last_binary_check = datetime.datetime.utcnow()
-
-            if self.waiting and self.binaries_available:
-                subscriber_id = self.waiting.pop()
-                md5sum = self.return_binary(subscriber_id)
-                if md5sum:
-                    self.subscribers[subscriber_id]["queue"].put(md5sum)
-                    self.last_binary_check = datetime.datetime.utcnow()
-                    continue
-
-            try:
-                subscriber_id = notification_queue.get(timeout=1)
-            except Queue.Empty:
-                # log.debug("Notification Queue empty, returning to top")
-                continue
-            except Exception:
-                # log exception
-                continue
-
-            notification_queue.task_done()
-
-            try:
-                subscriber_id = int(subscriber_id)
-                subscriber = self.subscribers[subscriber_id]
-                if subscriber["notification_source"] == "producer":
-                    # notifying that we have a new binary available
+        try:
+            while True:
+                if datetime.datetime.utcnow() - self.last_binary_check > self.timeout_period:
+                    # every minute or so, just see if there are binaries available in the database anyway
+                    log.debug("Binary timeout period elapsed; forcing database check")
                     self.binaries_available = True
                     self.last_binary_check = datetime.datetime.utcnow()
-                elif subscriber["notification_source"] == "consumer":
-                    log.debug("Consumer %d waiting for binary" % subscriber_id)
-                    self.waiting.insert(0, subscriber_id)
-            except Exception:
-                # log exception
-                continue
+
+                if self.waiting and self.binaries_available:
+                    log.info("waiting and binaries available")
+                    subscriber_id = self.waiting.pop()
+                    md5sum = self.return_binary(subscriber_id)
+                    if md5sum:
+                        self.subscribers[subscriber_id]["queue"].put(md5sum)
+                        self.last_binary_check = datetime.datetime.utcnow()
+                        continue
+
+                try:
+                    subscriber_id = notification_queue.get(timeout=1)
+                except Queue.Empty:
+                    log.debug("Notification Queue empty, returning to top")
+                    continue
+                except Exception:
+                    log.info(traceback.format_exc())
+                    continue
+
+                notification_queue.task_done()
+
+                try:
+                    subscriber_id = int(subscriber_id)
+                    subscriber = self.subscribers[subscriber_id]
+                    if subscriber["notification_source"] == "producer":
+                        # notifying that we have a new binary available
+                        self.binaries_available = True
+                        self.last_binary_check = datetime.datetime.utcnow()
+                    elif subscriber["notification_source"] == "consumer":
+                        log.debug("Consumer %d waiting for binary" % subscriber_id)
+                        self.waiting.insert(0, subscriber_id)
+                except Exception:
+                    log.info(traceback.format_exc())
+                    continue
+        except:
+            log.info(traceback.format_exc())
 
 
 class SqliteQueue(object):
@@ -171,7 +175,7 @@ class SqliteQueue(object):
     )
     _write_lock = 'BEGIN IMMEDIATE'
     _popleft_get = (
-        'SELECT md5sum FROM binary_data WHERE (state = 0 OR ((julianday(\'?\') - julianday(last_modified)) > ?) ) '
+        'SELECT * FROM binary_data WHERE (state = 0 OR ((julianday(?) - julianday(last_modified)) > ?) ) '
         'AND (next_attempt_at < ? OR next_attempt_at IS NULL) '
         'AND retry_count < ? '
         'ORDER BY binary_available_since DESC,next_attempt_at ASC LIMIT 1'
@@ -316,19 +320,17 @@ class SqliteQueue(object):
         max_wait = 2
         tries = 0
         with self._get_conn() as conn:
-            md5sum = None
             while keep_pooling:
                 conn.execute(self._write_lock)
                 if quick_scan:
                     cursor = conn.execute(self._quickscan_get,
                                           (datetime.datetime.utcnow(), self.num_days_before_rescan, self.max_retry_count))
                 else:
-                    cursor = conn.execute(self._popleft_get, (
-                    datetime.datetime.utcnow(), self.num_days_before_rescan, datetime.datetime.now(),
-                    self.max_retry_count))
-
+                    cursor = conn.execute(self._popleft_get,
+                                          (datetime.datetime.utcnow(), self.num_days_before_rescan, datetime.datetime.utcnow(), self.max_retry_count))
                 try:
-                    md5sum, = cursor.next()
+                    results = cursor.next()
+                    md5sum = results['md5sum']
                     keep_pooling = False
                 except StopIteration:
                     conn.commit()  # unlock the database
@@ -339,8 +341,8 @@ class SqliteQueue(object):
                     sleep(wait)
                     wait = min(max_wait, tries / 10 + wait)
                 except Exception:
+                    log.info(traceback.format_exc())
                     conn.commit()
-                    # TODO: log the exception
                 else:
                     conn.execute(self._update_queue, (datetime.datetime.utcnow(), md5sum))
                     conn.commit()
