@@ -155,7 +155,7 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     def initialize_queue(self):
         if not self._queue_initialized:
-            self.work_queue = SqliteQueue(self.database_file)
+            self.work_queue = SqliteQueue(self.database_file, num_days_before_rescan=self.days_rescan)
             self.work_queue.reprocess_on_restart()
             self._queue_initialized = True
 
