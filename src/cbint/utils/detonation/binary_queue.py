@@ -181,7 +181,7 @@ class SqliteQueue(object):
     )
     _quickscan_get = (
         'SELECT md5sum FROM binary_data WHERE ( ( state = 0 AND quick_scan_done = 0 ) '
-        'OR ((julianday(\'?\') - julianday(last_modified)) > ?) ) '
+        'OR ((julianday(?) - julianday(last_modified)) > ?) ) '
         'AND retry_count < ? LIMIT 1'
     )
     _update_queue = 'UPDATE binary_data SET state=50,last_modified = ? WHERE md5sum = ?'
