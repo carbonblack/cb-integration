@@ -13,6 +13,8 @@ from threading import Event, Thread
 from time import sleep
 import logging
 import datetime
+import socket
+import time
 
 try:
     import simplejson as json
@@ -254,6 +256,22 @@ class DetonationDaemon(CbIntegrationDaemon):
                                             key_file=self.key_file,
                                             listener_address=self.get_config_string('listener_address', '0.0.0.0'))
         self.feed_server.start()
+
+        #
+        # With Cb Response 6.1, it is much faster to respond back to check if the feed exists.
+        # So lets delay here a bit to make sure our feed server is running
+        #
+        for i in range(10):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            result = sock.connect_ex((self.get_config_string('listener_address', '0.0.0.0'),
+                                      self.get_config_integer('listener_port', 8080)))
+            if result == 0:
+                self.logger.info("Feed server is running...")
+                return
+            else:
+                self.logger.info("Feed server isn't running yet, sleep for 5 seconds and trying again...")
+            time.sleep(5)
+        self.logger.warning("Feed server doesn't seem to have started...")
 
     def get_or_create_feed(self):
         feed_id = self.cb.feed_get_id_by_name(self.name)
