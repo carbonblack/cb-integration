@@ -75,6 +75,7 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.feed_dirty = Event()
         self.feed_url = None
         self.feed_base_url = None
+        self.link_base_url = None
         self.days_rescan = 365
 
     ### Start: Functions which must be overriden in subclasses of DetonationDaemon ###
@@ -141,6 +142,11 @@ class DetonationDaemon(CbIntegrationDaemon):
         else:
             self.feed_base_url = "http://%s:%d" % (self.get_config_string('feed_host', '127.0.0.1'),
                                                    self.get_config_integer('listener_port', 8080))
+
+        self.link_base_url = self.get_config_string('link_host_url')
+
+        if not self.link_base_url:
+            self.link_base_url = self.feed_base_url
 
         self.feed_url = "%s%s" % (self.feed_base_url, '/feed.json')
 
@@ -250,7 +256,7 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.feed_server = SqliteFeedServer(self.database_file,
                                             self.get_config_integer('listener_port', 8080),
                                             feed_metadata,
-                                            self.feed_base_url,
+                                            self.link_base_url,
                                             self.work_directory,
                                             cert_file=self.cert_file,
                                             key_file=self.key_file,

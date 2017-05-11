@@ -427,14 +427,14 @@ class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
     _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score,link FROM binary_data WHERE state=100'
 
-    def __init__(self, dbname, port_number, feed_metadata, feed_base_url, work_directory, cert_file=None, key_file=None, listener_address='0.0.0.0'):
+    def __init__(self, dbname, port_number, feed_metadata, link_base_url, work_directory, cert_file=None, key_file=None, listener_address='0.0.0.0'):
         threading.Thread.__init__(self)
         self.daemon = True
         self.dbname = dbname
         self.port_number = port_number
         self.feed_metadata = feed_metadata
         self.listener_address = listener_address
-        self.feed_base_url = feed_base_url
+        self.link_base_url = link_base_url
         self.work_directory = work_directory
 
         self.cert_file = cert_file
@@ -454,19 +454,25 @@ class SqliteFeedServer(threading.Thread):
         return flask.redirect("/binaries.html")
 
     def report_results(self, report_id):
+        log.info("report_results ENTER")
         if not self.valid_filename_regex.match(report_id):
             log.critical("Attempt to retrieve invalid report file '%s'" % report_id)
+            log.info("report_results: not self.valid_filename_regex.match")
             flask.abort(404)
         if "sqlite.db" in report_id:
+            log.info("report_results: sqlite.db in report_id")
             flask.abort(404)
-
         try:
+            log.info("report_results: Attempting to read file {}".format(os.path.join(self.work_directory, report_id)))
             fp = open(os.path.join(self.work_directory, report_id), 'rb')
         except IOError:
+            log.info(traceback.format_exc())
             flask.abort(404)
         except Exception:
+            log.info(traceback.format_exc())
             flask.abort(500)
         else:
+            log.info("else/success case")
             fp.seek(0)
             return flask.send_file(fp, mimetype='application/pdf')
 
@@ -483,7 +489,7 @@ class SqliteFeedServer(threading.Thread):
                 if binary[6]:                # link present
                     if binary[6].startswith("/reports/"):
                         # a relative link. Build this at feed generation time
-                        link = self.feed_base_url + binary[6]
+                        link = self.link_base_url + binary[6]
                     else:
                         # an absolute link. Pass along unchanged
                         link = binary[6]
