@@ -1,17 +1,22 @@
-__author__ = 'jgarman'
+import logging
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
 
 from cbint.utils.daemon import CbIntegrationDaemon, ConfigurationError
-from cbint.utils.detonation.binary_queue import SqliteQueue, SqliteFeedServer, BinaryDatabaseController
-from cbint.utils.detonation.binary_analysis import (CbAPIHistoricalProducerThread, CbAPIUpToDateProducerThread,
+from cbint.utils.detonation.binary_queue import (SqliteQueue,
+                                                 SqliteFeedServer,
+                                                 BinaryDatabaseController)
+from cbint.utils.detonation.binary_analysis import (CbAPIHistoricalProducerThread,
+                                                    CbAPIUpToDateProducerThread,
                                                     QuickScanThread,
                                                     DeepAnalysisThread)
 import cbint.utils.feed
 import cbint.utils.cbserver
-import cbapi
 import os.path
 from threading import Event, Thread
 from time import sleep
-import logging
+from logging.handlers import RotatingFileHandler
 import datetime
 import socket
 import time
@@ -21,8 +26,8 @@ try:
 except ImportError:
     import json
 
-
-log = logging.getLogger(__name__)
+from cbapi.response import CbResponseAPI, Feed
+from cbapi.example_helpers import get_object_by_name_or_id
 
 
 class IntegrationError(Exception):
@@ -58,7 +63,7 @@ class FeedSyncRunner(Thread):
 
             if self.dirty_event.is_set():
                 self.dirty_event.clear()
-                logging.info("synchronizing feed: %s" % self.__feed_name)
+                log.info("synchronizing feed: %s" % self.__feed_name)
                 self.__cb.feed_synchronize(self.__feed_name, False)
 
 
@@ -77,6 +82,11 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.feed_base_url = None
         self.link_base_url = None
         self.days_rescan = 365
+
+        #
+        # We need to reinitialize logging since we have forked
+        #
+        self.initialize_logging()
 
     ### Start: Functions which must be overriden in subclasses of DetonationDaemon ###
 
@@ -108,6 +118,16 @@ class DetonationDaemon(CbIntegrationDaemon):
 
     ### End:   Functions which must be overriden in subclasses of DetonationDaemon ###
 
+    def initialize_logging(self):
+        if self.logfile is None:
+            log_path = "/var/log/cb/integrations/%s/" % self.name
+            cbint.utils.filesystem.ensure_directory_exists(log_path)
+            self.logfile = "%s%s.log" % (log_path, self.name)
+
+        rlh = RotatingFileHandler(self.logfile, maxBytes=524288, backupCount=10)
+        rlh.setFormatter(logging.Formatter(fmt="%(asctime)s: %(module)s: %(levelname)s: %(message)s"))
+        log.addHandler(rlh)
+
     def validate_config(self):
         if not self.cfg.has_section('bridge'):
             raise ConfigurationError("Configuration file does not have required section 'bridge'")
@@ -117,10 +137,25 @@ class DetonationDaemon(CbIntegrationDaemon):
         ssl_verify = self.get_config_boolean("carbonblack_server_sslverify", False)
         server_url = self.cfg.get("bridge", "carbonblack_server_url")
         server_token = self.cfg.get("bridge", "carbonblack_server_token")
-        try:
-            self.cb = cbapi.CbApi(server_url, token=server_token, ssl_verify=ssl_verify)
-        except Exception as e:
-            raise ConfigurationError("Could not create CbAPI instance to %s: %s" % (server_url, e.message))
+
+        #
+        # There are times we need to wait for the Cb Response Server to be back up after a reboot.
+        # So lets just sleep for 30 secs while we do 3 max retries
+        #
+        for i in range(3):
+            try:
+                self.cb = CbResponseAPI(url=server_url, token=server_token, ssl_verify=ssl_verify)
+                cbinfo = self.cb.info()
+                if cbinfo:
+                    break
+            except Exception as e:
+                log.info(e.message)
+                log.info("Failed to connect to Cb Response Server, retrying in 30 secs...")
+                time.sleep(30)
+                continue
+
+        if not cbinfo:
+            raise ConfigurationError("Could not connect to Cb server at %s" % (server_url))
 
         if self.get_config_boolean("use_streaming", False):
             self.check_required_options(['carbonblack_streaming_host', 'carbonblack_streaming_username',
@@ -152,12 +187,6 @@ class DetonationDaemon(CbIntegrationDaemon):
 
         if self.cfg.has_option('bridge', 'days_rescan'):
             self.days_rescan = self.get_config_integer('days_rescan', 365)
-
-        try:
-            cbinfo = self.cb.info()
-            self.cb_version = cbinfo['version']
-        except Exception as e:
-            raise ConfigurationError("Could not connect to Cb server at %s: %s" % (server_url, str(e)))
 
         return True
 
@@ -272,18 +301,33 @@ class DetonationDaemon(CbIntegrationDaemon):
             result = sock.connect_ex((self.get_config_string('listener_address', '0.0.0.0'),
                                       self.get_config_integer('listener_port', 8080)))
             if result == 0:
-                self.logger.info("Feed server is running...")
+                log.info("Feed server is running...")
                 return
             else:
-                self.logger.info("Feed server isn't running yet, sleep for 5 seconds and trying again...")
+                log.info("Feed server isn't running yet, sleep for 5 seconds and trying again...")
             time.sleep(5)
-        self.logger.warning("Feed server doesn't seem to have started...")
+        log.warning("Feed server doesn't seem to have started...")
 
-    def get_or_create_feed(self):
-        feed_id = self.cb.feed_get_id_by_name(self.name)
-        self.logger.info("Feed id for %s: %s" % (self.name, feed_id))
+    def get_or_create_feed(self, retry=3):
+
+        feed_id = None
+
+        for i in range(retry):
+            try:
+                feeds = get_object_by_name_or_id(self.cb, Feed, name=self.name)
+                if len(feeds) > 1:
+                    log.warning("Multiple feeds found, selecting Feed id {}".format(feeds[0].id))
+                feed_id = feeds[0].id
+                log.info("Feed {} was found as Feed ID {}".format(self.name, feed_id))
+                break
+            except Exception as e:
+                log.info(e.message)
+                log.info("Failed to get feed_id, sleeping for 30 seconds and retrying")
+                time.sleep(30)
+                continue
+
         if not feed_id:
-            self.logger.info("Creating %s feed for the first time" % self.name)
+            log.info("Creating %s feed for the first time" % self.name)
             # TODO: clarification of feed_host vs listener_address
             result = self.cb.feed_add_from_url(self.feed_url, True, False, False)
 
@@ -292,42 +336,46 @@ class DetonationDaemon(CbIntegrationDaemon):
 
         return feed_id
 
+
     def run(self):
-        work_queue = self.initialize_queue()
-        self.database_controller = BinaryDatabaseController(work_queue)
-        self.database_controller.start()
+        try:
+            work_queue = self.initialize_queue()
+            self.database_controller = BinaryDatabaseController(work_queue)
+            self.database_controller.start()
 
-        # Import previous work, if enabled
-        legacy_feed_directory = self.get_config_string("legacy_feed_directory", None)
-        if legacy_feed_directory:
-            self.migrate_legacy_reports(legacy_feed_directory)
+            # Import previous work, if enabled
+            legacy_feed_directory = self.get_config_string("legacy_feed_directory", None)
+            if legacy_feed_directory:
+                self.migrate_legacy_reports(legacy_feed_directory)
 
-        # Prepare binary analysis ("detonation") provider
-        consumer_threads = []
-        provider = self.get_provider()
-        for i in range(self.num_quick_scan_threads):
-            database_arbiter = self.database_controller.register("consumer", quick_scan=True)
-            t = QuickScanThread(database_arbiter, self.cb, provider, dirty_event=self.feed_dirty)
-            consumer_threads.append(t)
-            t.start()
-        for i in range(self.num_deep_scan_threads):
-            database_arbiter = self.database_controller.register("consumer", quick_scan=False)
-            t = DeepAnalysisThread(database_arbiter, self.cb, provider, dirty_event=self.feed_dirty)
-            consumer_threads.append(t)
-            t.start()
+            # Prepare binary analysis ("detonation") provider
+            consumer_threads = []
+            provider = self.get_provider()
+            for i in range(self.num_quick_scan_threads):
+                database_arbiter = self.database_controller.register("consumer", quick_scan=True)
+                t = QuickScanThread(database_arbiter, self.cb, provider, dirty_event=self.feed_dirty)
+                consumer_threads.append(t)
+                t.start()
+            for i in range(self.num_deep_scan_threads):
+                database_arbiter = self.database_controller.register("consumer", quick_scan=False)
+                t = DeepAnalysisThread(database_arbiter, self.cb, provider, dirty_event=self.feed_dirty)
+                consumer_threads.append(t)
+                t.start()
 
-        # Start feed server
-        metadata = self.get_metadata()
-        self.start_feed_server(metadata)
+            # Start feed server
+            metadata = self.get_metadata()
+            self.start_feed_server(metadata)
 
-        # Start collecting binaries
-        collectors = self.start_binary_collectors(self.filter_spec)
+            # Start collecting binaries
+            collectors = self.start_binary_collectors(self.filter_spec)
 
-        # Synchronize feed with Carbon Black
-        self.get_or_create_feed()
-        if cbint.utils.cbserver.is_server_at_least(self.cb, "4.1"):
-            feed_synchronizer = FeedSyncRunner(self.cb, self.name, self.feed_dirty)
-            feed_synchronizer.start()
+            # Synchronize feed with Carbon Black
+            self.get_or_create_feed()
+            if cbint.utils.cbserver.is_server_at_least(self.cb, "4.1"):
+                feed_synchronizer = FeedSyncRunner(self.cb, self.name, self.feed_dirty)
+                feed_synchronizer.start()
+        except Exception as e:
+            log.error(e.message)
 
         try:
             while True:

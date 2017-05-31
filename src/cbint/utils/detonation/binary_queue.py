@@ -69,7 +69,7 @@ class BinaryDatabaseController(threading.Thread):
         this_subscriber = self.subscriber_id
         queue = Queue.Queue()
         self.subscribers.append({"queue": queue, "notification_source": notification_source,
-                                             "quick_scan": quick_scan})
+                                 "quick_scan": quick_scan})
         self.subscriber_id += 1
 
         log.debug("Registered notification source %s - got id %d" % (notification_source, this_subscriber))
@@ -323,10 +323,12 @@ class SqliteQueue(object):
                 conn.execute(self._write_lock)
                 if quick_scan:
                     cursor = conn.execute(self._quickscan_get,
-                                          (datetime.datetime.utcnow(), self.num_days_before_rescan, self.max_retry_count))
+                                          (datetime.datetime.utcnow(), self.num_days_before_rescan,
+                                           self.max_retry_count))
                 else:
                     cursor = conn.execute(self._popleft_get,
-                                          (datetime.datetime.utcnow(), self.num_days_before_rescan, datetime.datetime.utcnow(), self.max_retry_count))
+                                          (datetime.datetime.utcnow(), self.num_days_before_rescan,
+                                           datetime.datetime.utcnow(), self.max_retry_count))
                 try:
                     results = cursor.next()
                     md5sum = results['md5sum']
@@ -377,7 +379,8 @@ class SqliteQueue(object):
                 computed_hours = round(computed_time_difference.total_seconds() / 3600, 1)
 
                 log.info("Attempting to migrate timestamps from old database from localtime to GMT")
-                log.info("This conversion is approximate and will shift timestamps stored in the database by %f hours" % computed_hours)
+                log.info(
+                    "This conversion is approximate and will shift timestamps stored in the database by %f hours" % computed_hours)
                 log.info("")
                 log.info("if there are errors, re-initialize the database by removing the file")
                 log.info(self.path)
@@ -387,7 +390,8 @@ class SqliteQueue(object):
                 conn.execute("UPDATE feed_data SET database_version=7")
 
     def _migrate_timestamps(self, conn, time_shift):
-        rows = list(conn.execute("SELECT md5sum,last_modified,inserted_at,next_attempt_at,binary_available_since FROM binary_data"))
+        rows = list(conn.execute(
+            "SELECT md5sum,last_modified,inserted_at,next_attempt_at,binary_available_since FROM binary_data"))
         for row in rows:
             new_timestamp = []
             for i in range(1, 5):
@@ -400,8 +404,9 @@ class SqliteQueue(object):
                         log.exception("Could not convert %s to date/time stamp for md5sum %s" % (row[i], row[0]))
 
                 new_timestamp.append(dt)
-            conn.execute("UPDATE binary_data SET last_modified = ?, inserted_at = ?, next_attempt_at = ?, binary_available_since = ? WHERE md5sum = ?",
-                         (new_timestamp[0], new_timestamp[1], new_timestamp[2], new_timestamp[3], row[0]))
+            conn.execute(
+                "UPDATE binary_data SET last_modified = ?, inserted_at = ?, next_attempt_at = ?, binary_available_since = ? WHERE md5sum = ?",
+                (new_timestamp[0], new_timestamp[1], new_timestamp[2], new_timestamp[3], row[0]))
 
     def get_value(self, keyname, default=None):
         with self._get_conn() as conn:
@@ -427,7 +432,8 @@ class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
     _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score,link FROM binary_data WHERE state=100'
 
-    def __init__(self, dbname, port_number, feed_metadata, link_base_url, work_directory, cert_file=None, key_file=None, listener_address='0.0.0.0'):
+    def __init__(self, dbname, port_number, feed_metadata, link_base_url, work_directory, cert_file=None, key_file=None,
+                 listener_address='0.0.0.0'):
         threading.Thread.__init__(self)
         self.daemon = True
         self.dbname = dbname
@@ -486,7 +492,7 @@ class SqliteFeedServer(threading.Thread):
         for binary in binaries:
             # Only report binaries with a non-zero score
             if int(binary[5]) > 0:
-                if binary[6]:                # link present
+                if binary[6]:  # link present
                     if binary[6].startswith("/reports/"):
                         # a relative link. Build this at feed generation time
                         link = self.link_base_url + binary[6]
@@ -520,7 +526,6 @@ class SqliteFeedServer(threading.Thread):
     def run(self):
         self.conn = sqlite3.Connection(self.dbname, timeout=60)
         self.conn.row_factory = sqlite3.Row
-
 
         try:
             if self.cert_file and self.key_file:
