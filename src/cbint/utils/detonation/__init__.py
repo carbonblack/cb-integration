@@ -83,12 +83,17 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.link_base_url = None
         self.days_rescan = 365
 
+
         #
         # We need to reinitialize logging since we have forked
         #
         self.initialize_logging()
 
     ### Start: Functions which must be overriden in subclasses of DetonationDaemon ###
+
+    @property
+    def integration_name(self):
+        return ''
 
     @property
     def num_quick_scan_threads(self):
@@ -142,9 +147,15 @@ class DetonationDaemon(CbIntegrationDaemon):
         # There are times we need to wait for the Cb Response Server to be back up after a reboot.
         # So lets just sleep for 30 secs while we do 3 max retries
         #
+
+        log.info(self.integration_name)
+
         for i in range(3):
             try:
-                self.cb = CbResponseAPI(url=server_url, token=server_token, ssl_verify=ssl_verify)
+                self.cb = CbResponseAPI(url=server_url,
+                                        token=server_token,
+                                        ssl_verify=ssl_verify,
+                                        integration_name=self.integration_name)
                 cbinfo = self.cb.info()
                 if cbinfo:
                     break
