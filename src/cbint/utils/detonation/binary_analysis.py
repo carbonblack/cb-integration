@@ -283,20 +283,15 @@ class DeepAnalysisThread(BinaryConsumerThread):
 
         try:
             start_dl_time = time.time()
-            z = StringIO(self.cb.binary(md5sum))
+
+            binary = self.cb.select(Binary, md5sum)
+            fp = StringIO(binary.file.read())
+
             end_dl_time = time.time()
             log.debug("%s: Took %0.3f seconds to download the file" % (md5sum, end_dl_time - start_dl_time))
         except Exception as e:
             self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Binary not available in Cb",
                                                                            retry_in=60))
-            return
-
-        try:
-            zf = ZipFile(z)
-            fp = zf.open('filedata')
-        except Exception as e:
-            self.save_unsuccessful_analysis(md5sum, AnalysisPermanentError(message="Zip file corrupt",
-                                                                           extended_message=traceback.format_exc()))
             return
 
         try:

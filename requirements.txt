@@ -1,5 +1,5 @@
 netifaces
 flask>=0.10.1
 python-dateutil>=2.4.2
-cbapi==0.8.0
+cbapi==1.0.1
 cbfeeds==0.8.0
