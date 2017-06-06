@@ -2,13 +2,13 @@ import threading
 import datetime
 import traceback
 from time import sleep
-import json
 from zipfile import ZipFile
 from cStringIO import StringIO
 import time
 import logging
 import dateutil.parser
 
+from cbapi.response import Binary
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class CbAPIProducerThread(threading.Thread):
         now = getattr(self, 'default_start_time', datetime.datetime.utcnow())
         now = to_cb_time(now)
 
-        self.start_time_key = self.__class__.__name__+'_start_time'
+        self.start_time_key = self.__class__.__name__ + '_start_time'
         self.start_time = dateutil.parser.parse(self.queue.get_value(self.start_time_key, now))
 
     def stop(self):
@@ -59,18 +59,21 @@ class CbAPIProducerThread(threading.Thread):
             # TODO: retry logic - make sure we don't bomb out if this fails
             log.debug("Querying cb for binaries matching '%s'" % self.query_string)
             try:
-                for i, binary in enumerate(self.cb.binary_search_iter(self.query_string,
-                                                                      sort=self.query_sort)):
+
+                binary_query = self.cb.select(Binary).where(self.query_string)
+                for i, binary in enumerate(binary_query):
+                    # for i, binary in enumerate(self.cb.binary_search_iter(self.query_string,
+                    #                                                      sort=self.query_sort)):
                     if self.done:
                         return
 
                     # TODO: keep track of server_added_timestamp if we have it, and use that to filter next time
-                    if not self.queue.notify_binary_available(binary['md5']):
+                    if not self.queue.notify_binary_available(binary.md5):
                         pass
                         # print 'md5 %s already tracked' % (binary['md5'],)
 
-                    sleep(self.rate_limiter)        # no need to flood the Cb server or ourselves with binaries
-                    cur_timestamp = binary['server_added_timestamp']
+                    sleep(self.rate_limiter)  # no need to flood the Cb server or ourselves with binaries
+                    cur_timestamp = binary.server_added_timestamp
 
                     if self.max_rows and i > self.max_rows:
                         break
@@ -209,7 +212,8 @@ class BinaryConsumerThread(threading.Thread):
         if type(e) == AnalysisTemporaryError:
             retry_in_seconds = int(e.retry_in)
             self.database_arbiter.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message,
-                                                   retry_at=datetime.datetime.utcnow()+datetime.timedelta(seconds=retry_in_seconds))
+                                                   retry_at=datetime.datetime.utcnow() + datetime.timedelta(
+                                                       seconds=retry_in_seconds))
             log.error("Temporary error analyzing md5sum %s: %s (%s). Will retry in %d seconds." % (md5sum,
                                                                                                    e.message,
                                                                                                    e.extended_message,
@@ -221,7 +225,7 @@ class BinaryConsumerThread(threading.Thread):
                                                                          e.extended_message))
         else:
             self.database_arbiter.mark_as_analyzed(md5sum, False, 0, "%s: %s" % (e.__class__.__name__, e.message),
-                                        "%s" % traceback.format_exc())
+                                                   "%s" % traceback.format_exc())
             log.error("Unknown error analyzing md5sum %s: %s (%s)." % (md5sum,
                                                                        e.__class__.__name__,
                                                                        e.message))
@@ -279,20 +283,15 @@ class DeepAnalysisThread(BinaryConsumerThread):
 
         try:
             start_dl_time = time.time()
-            z = StringIO(self.cb.binary(md5sum))
+
+            binary = self.cb.select(Binary, md5sum)
+            fp = StringIO(binary.file.read())
+
             end_dl_time = time.time()
-            log.debug("%s: Took %0.3f seconds to download the file" % (md5sum, end_dl_time-start_dl_time))
+            log.debug("%s: Took %0.3f seconds to download the file" % (md5sum, end_dl_time - start_dl_time))
         except Exception as e:
             self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Binary not available in Cb",
                                                                            retry_in=60))
-            return
-
-        try:
-            zf = ZipFile(z)
-            fp = zf.open('filedata')
-        except Exception as e:
-            self.save_unsuccessful_analysis(md5sum, AnalysisPermanentError(message="Zip file corrupt",
-                                                                           extended_message=traceback.format_exc()))
             return
 
         try:

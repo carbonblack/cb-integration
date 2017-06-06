@@ -1,4 +1,6 @@
-import cbapi
+import logging
+
+log = logging.getLogger(__name__)
 
 def check_version(required_version, supplied_version):
     """
@@ -24,6 +26,7 @@ def is_server_at_least(cb_api, version):
     version is greater than or equal to the provided version string
     """
     server_info = cb_api.info()
+
     if not server_info or 'version' not in server_info:
         return False
     else:
@@ -33,6 +36,7 @@ def is_server_at_least(cb_api, version):
         else:
             return True
 
+'''
 def connect_local_cbapi():
     from cb.utils import Config
     from cb.utils.db import db_session_context
@@ -49,3 +53,4 @@ def connect_local_cbapi():
 
     port = cfg.NginxWebApiHttpPort
     return cbapi.CbApi('https://{0:s}:{1:d}/'.format('127.0.0.1', port), token=api_token, ssl_verify=False)
+'''

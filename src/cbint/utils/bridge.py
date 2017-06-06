@@ -4,7 +4,6 @@ import sys
 from contextlib import contextmanager
 from cbfeeds import CbFeed, CbFeedInfo
 from tempfile import NamedTemporaryFile
-from cbint.utils.cbserver import connect_local_cbapi
 import logging
 from logging.handlers import RotatingFileHandler
 import time

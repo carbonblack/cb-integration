@@ -4,8 +4,8 @@ from setuptools import setup
 
 setup(
     name='cbint',
-    version='0.8.5',
-    url='http://www.carbonblack.com/',
+    version='0.8.8',
+    url='https://developer.carbonblack.com/',
     license='MIT',
     author='Carbon Black',
     author_email='dev-support@carbonblack.com',
@@ -22,5 +22,5 @@ setup(
         'Programming Language :: Python',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
-    install_requires=['flask', 'python-dateutil', 'netifaces', 'cbapi==0.8.0', 'cbfeeds==0.8.0']
+    install_requires=['flask', 'python-dateutil', 'netifaces', 'cbapi==1.1.1', 'cbfeeds==0.8.0']
 )

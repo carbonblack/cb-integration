@@ -13,9 +13,9 @@ from signal import SIGTERM
 import errno
 import traceback
 import cbint.utils.filesystem
-import cbapi
 from netifaces import interfaces, ifaddresses, AF_INET6, AF_INET, gateways
 
+log = logging.getLogger(__name__)
 
 class Timer(object):
     def __enter__(self):
@@ -52,8 +52,7 @@ class CbIntegrationDaemon(object):
         self.stderr = stderr
         self.__is_daemon_initialized = False
         self.__is_logging_initialized = False
-        self.logger = logging.getLogger()
-        self.logger.setLevel(logging.INFO)
+
         self.debug = debug
 
         # Disable requests verbose logging at INFO level
@@ -72,7 +71,7 @@ class CbIntegrationDaemon(object):
             self.fatal(e)
 
         if self.debug:                            # set in __parse_config
-            self.logger.setLevel(logging.DEBUG)
+            log.setLevel(logging.DEBUG)
         else:
             euid = os.geteuid()
             if euid != 0:
@@ -86,8 +85,8 @@ class CbIntegrationDaemon(object):
         msg = "%s (%s)" % (e.message, e.__class__.__name__)
         sys.stderr.write("%s: %s\n" % (self.name, msg))
         sys.stderr.flush()
-        self.logger.critical(msg)
-        self.logger.critical("Traceback: %s" % traceback.format_exc())
+        log.critical(msg)
+        log.critical("Traceback: %s" % traceback.format_exc())
         sys.exit(1)
 
     def daemonize(self):
@@ -160,7 +159,7 @@ class CbIntegrationDaemon(object):
                 sys.stderr.write("%s: pidfile %s already exist. Daemon already running?\n" % (self.name, self.pidfile))
                 sys.exit(1)
 
-        self.logger.info("daemon starting...")
+        log.info("daemon starting...")
 
         try:
             # for backwards compatibility, validate_config() can also return False
@@ -178,35 +177,39 @@ class CbIntegrationDaemon(object):
         for interface_name in interfaces():
             ip4addresses = [i['addr'] for i in
                             ifaddresses(interface_name).setdefault(AF_INET, [{'addr':'No IPv4 addr'}] )]
-            self.logger.info('IPv4 addresses for %s: %s' % (interface_name, ', '.join(ip4addresses)))
+            log.info('IPv4 addresses for %s: %s' % (interface_name, ', '.join(ip4addresses)))
 
         gateway_ip, gateway_dev = gateways()['default'].setdefault(AF_INET, ('No gateway', None))
         if gateway_dev:
-            self.logger.info('Default IPv4 route: %s via %s' % (gateway_ip, gateway_dev))
+            log.info('Default IPv4 route: %s via %s' % (gateway_ip, gateway_dev))
         else:
-            self.logger.warning('No default IPv4 route found')
+            log.warning('No default IPv4 route found')
 
         proxy_environment_variables = ['https_proxy', 'http_proxy', 'no_proxy']
         proxy_environment_variables.extend([v.upper() for v in proxy_environment_variables])
 
         for proxy_env in proxy_environment_variables:
             if os.getenv(proxy_env):
-                self.logger.info('Found proxy configuration: %s = %s' % (proxy_env, os.getenv(proxy_env)))
+                log.info('Found proxy configuration: %s = %s' % (proxy_env, os.getenv(proxy_env)))
 
-        try:
-            # here we just need to make one HTTP request in order to work around an issue where we get a file not
-            # found exception on unicode.so after the fork() from the requests library when we package with pyinstaller.
-            cb = cbapi.CbApi(server_url, token=server_token, ssl_verify=ssl_verify)
-            cb.info()
-        except Exception as e:
-            pass
-            # raise ConfigurationError("Could not create CbAPI instance to %s: %s" % (server_url, e.message))
+        '''
+                try:
+                    # here we just need to make one HTTP request in order to work around an issue where we get a file not
+                    # found exception on unicode.so after the fork() from the requests library when we package with pyinstaller.
+                    log.info("here")
+                    cb = CbResponseAPI(url=server_url, token=server_token, ssl_verify=False)
+                    cb.info()
+                except Exception as e:
+                    log.info("here1")
+                    pass
+                    # raise ConfigurationError("Could not create CbAPI instance to %s: %s" % (server_url, e.message))
+        '''
 
         # call on_starting just before we call run()
         self.on_starting()
 
         if self.debug:
-            self.logger.info("Starting %s in the foreground, in debug mode" % self.name)
+            log.info("Starting %s in the foreground, in debug mode" % self.name)
             self.run()
         else:
             # Start the daemon
@@ -216,7 +219,7 @@ class CbIntegrationDaemon(object):
             except Exception as e:
                 self.fatal(e)
 
-        self.logger.info("the daemon has stopped")
+        log.info("the daemon has stopped")
 
         sys.exit(1)
 
@@ -239,7 +242,7 @@ class CbIntegrationDaemon(object):
             # not an error in a restart
             return
 
-        self.logger.info("daemon stopping...")
+        log.info("daemon stopping...")
 
         # Try killing the daemon process
         try:
@@ -299,17 +302,17 @@ class CbIntegrationDaemon(object):
         if not os.path.exists(configfile):
             raise ConfigurationError("could not locate config file: %s" % configfile or "None")
 
-        self.logger.debug("parsing configuration")
+        log.debug("parsing configuration")
         self.cfg = ConfigParser.RawConfigParser()
         self.cfg.read(configfile)
 
         # keeping self.options for backwards compatibility with older integrations
         for section in self.cfg.sections():
             self.options[section] = {}
-            self.logger.debug("section: %s" % section)
+            log.debug("section: %s" % section)
             for option in self.cfg.options(section):
                 self.options[section][option] = self.cfg.get(section, option)
-                self.logger.debug("   %s: %s" % (option, self.cfg.get(section, option)))
+                log.debug("   %s: %s" % (option, self.cfg.get(section, option)))
 
     def __initialize_daemon(self):
         """
@@ -334,7 +337,7 @@ class CbIntegrationDaemon(object):
 
             rlh = RotatingFileHandler(self.logfile, maxBytes=524288, backupCount=10)
             rlh.setFormatter(logging.Formatter(fmt="%(asctime)s: %(module)s: %(levelname)s: %(message)s"))
-            self.logger.addHandler(rlh)
+            log.addHandler(rlh)
 
         self.__is_logging_initialized = True
 
