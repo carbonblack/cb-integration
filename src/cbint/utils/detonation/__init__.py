@@ -28,6 +28,7 @@ except ImportError:
 
 from cbapi.response import CbResponseAPI, Feed
 from cbapi.example_helpers import get_object_by_name_or_id
+from cbapi.errors import ServerError
 
 
 class IntegrationError(Exception):
@@ -326,24 +327,46 @@ class DetonationDaemon(CbIntegrationDaemon):
         for i in range(retry):
             try:
                 feeds = get_object_by_name_or_id(self.cb, Feed, name=self.name)
+
+                if not feeds:
+                    log.info("Feed {} was not found, so we are going to create it".format(self.name))
+                    break
+
                 if len(feeds) > 1:
                     log.warning("Multiple feeds found, selecting Feed id {}".format(feeds[0].id))
                 feed_id = feeds[0].id
+
                 log.info("Feed {} was found as Feed ID {}".format(self.name, feed_id))
                 break
             except Exception as e:
                 log.info(e.message)
-                log.info("Failed to get feed_id, sleeping for 30 seconds and retrying")
-                time.sleep(30)
-                continue
+                break
 
         if not feed_id:
             log.info("Creating %s feed for the first time" % self.name)
             # TODO: clarification of feed_host vs listener_address
-            result = self.cb.feed_add_from_url(self.feed_url, True, False, False)
 
-            # TODO: defensive coding around these self.cb calls
-            feed_id = result.get('id', 0)
+            f = self.cb.create(Feed)
+            f.feed_url = self.feed_url
+            f.enabled = True
+            f.use_proxy = False
+            f.validate_server_cert = False
+            try:
+                f.save()
+            except ServerError as se:
+                if se.error_code == 500:
+                    log.info("Could not add feed:")
+                    log.info(
+                    " Received error code 500 from server. This is usually because the server cannot retrieve the feed.")
+                    log.info(" Check to ensure the Cb server has network connectivity and the credentials are correct.")
+                else:
+                    log.info("Could not add feed: {0:s}".format(str(se)))
+            except Exception as e:
+                log.info("Could not add feed: {0:s}".format(str(e)))
+            else:
+                log.info("Feed data: {0:s}".format(str(f)))
+                log.info("Added feed. New feed ID is {0:d}".format(f.id))
+                feed_id = f.id
 
         return feed_id
 
