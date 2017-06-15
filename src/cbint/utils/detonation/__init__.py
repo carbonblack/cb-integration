@@ -151,6 +151,8 @@ class DetonationDaemon(CbIntegrationDaemon):
 
         log.info(self.integration_name)
 
+        cbinfo = None
+
         for i in range(3):
             try:
                 self.cb = CbResponseAPI(url=server_url,
