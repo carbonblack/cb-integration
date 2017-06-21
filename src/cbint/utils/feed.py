@@ -54,34 +54,3 @@ def generate_feed(feed_name, summary, tech_data, provider_url, icon_path, displa
     feed["reports"] = []
 
     return feed
-
-
-class FeedSyncRunner(object):
-    """
-    performs feed synchronization logic
-    synchronizes a feed using the provided cb_api reference
-    sync_needed should be set to true when a sync is needed
-    """
-    def __init__(self, cb_api, feed_name, interval=15):
-        self.__cb = cb_api
-        self.__feed_name = feed_name
-        self.__interval = int(interval)
-        self.sync_needed = False
-        self.sync_supported = False
-
-        if cbint.utils.cbserver.is_server_at_least(self.__cb, "4.1"):
-            self.sync_supported = True
-
-        if self.sync_supported:
-            sync_thread = threading.Thread(target=self.__perform_feed_sync)
-            sync_thread.setDaemon(True)
-            sync_thread.start()
-
-    def __perform_feed_sync(self):
-        while True:
-            time.sleep(self.__interval * 60)
-
-            if self.sync_needed:
-                logging.info("synchronizing feed: %s" % self.__feed_name)
-                self.__cb.feed_synchronize(self.__feed_name, False)
-                self.sync_needed = False
