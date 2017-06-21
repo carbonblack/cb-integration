@@ -48,11 +48,11 @@ class FeedSyncRunner(Thread):
     synchronizes a feed using the provided cb_api reference
     sync_needed should be set to true when a sync is needed
     """
-    def __init__(self, cb_api, feed_name, dirty_event, interval=15):
+    def __init__(self, cb_api, feed_name, dirty_event, interval=60):
         Thread.__init__(self)
-        self.__cb = cb_api
-        self.__feed_name = feed_name
-        self.__interval = int(interval)
+        self.cb = cb_api
+        self.feed_name = feed_name
+        self.interval = int(interval)
         self.sync_needed = False
         self.sync_supported = False
         self.dirty_event = dirty_event
@@ -60,12 +60,22 @@ class FeedSyncRunner(Thread):
 
     def run(self):
         while True:
-            sleep(self.__interval)
-
-            if self.dirty_event.is_set():
-                self.dirty_event.clear()
-                log.info("synchronizing feed: %s" % self.__feed_name)
-                self.__cb.feed_synchronize(self.__feed_name, False)
+            log.info("Feed synchronizing thread sleeping for {} seconds".format(self.interval))
+            sleep(self.interval)
+            try:
+                if self.dirty_event.is_set():
+                    self.dirty_event.clear()
+                    feeds = get_object_by_name_or_id(self.cb, Feed, name=self.feed_name)
+                    if not feeds:
+                        log.error("Error locating feed {} for synchronization".format(self.feed_name))
+                        continue
+                    if len(feeds) > 1:
+                        log.error("Multiple feeds found for synchronization")
+                    for feed in feeds:
+                        log.info("Synchronizing Feed {}...".format(feed.name))
+                        feed.synchronize(False)
+            except Exception as e:
+                log.error(e.message)
 
 
 class DetonationDaemon(CbIntegrationDaemon):

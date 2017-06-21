@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='cbint',
-    version='0.8.9',
+    version='0.8.10',
     url='https://developer.carbonblack.com/',
     license='MIT',
     author='Carbon Black',
