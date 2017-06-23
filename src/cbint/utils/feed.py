@@ -1,10 +1,4 @@
-import time
 import base64
-import logging
-import threading
-
-import cbint.utils.cbserver
-
 
 def generate_icon(image_path):
     """

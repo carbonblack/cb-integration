@@ -1,6 +1,6 @@
 netifaces
 flask>=0.10.1
 python-dateutil>=2.4.2
--e git+https://github.com/carbonblack/cbapi-python#egg=cbapi-python
+cbapi==1.2.0
 cbfeeds==0.8.0
 pyinstaller==3.1.1
