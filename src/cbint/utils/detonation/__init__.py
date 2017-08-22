@@ -94,12 +94,6 @@ class DetonationDaemon(CbIntegrationDaemon):
         self.link_base_url = None
         self.days_rescan = 365
 
-
-        #
-        # We need to reinitialize logging since we have forked
-        #
-        self.initialize_logging()
-
     ### Start: Functions which must be overriden in subclasses of DetonationDaemon ###
 
     @property
@@ -133,16 +127,6 @@ class DetonationDaemon(CbIntegrationDaemon):
         raise IntegrationError("Integration did not provide a 'get_metadata' function, which is required")
 
     ### End:   Functions which must be overriden in subclasses of DetonationDaemon ###
-
-    def initialize_logging(self):
-        if self.logfile is None:
-            log_path = "/var/log/cb/integrations/%s/" % self.name
-            cbint.utils.filesystem.ensure_directory_exists(log_path)
-            self.logfile = "%s%s.log" % (log_path, self.name)
-
-        rlh = RotatingFileHandler(self.logfile, maxBytes=524288, backupCount=10)
-        rlh.setFormatter(logging.Formatter(fmt="%(asctime)s: %(module)s: %(levelname)s: %(message)s"))
-        log.addHandler(rlh)
 
     def validate_config(self):
         if not self.cfg.has_section('bridge'):

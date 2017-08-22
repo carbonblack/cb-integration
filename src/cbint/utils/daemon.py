@@ -335,9 +335,11 @@ class CbIntegrationDaemon(object):
                 cbint.utils.filesystem.ensure_directory_exists(log_path)
                 self.logfile = "%s%s.log" % (log_path, self.name)
 
+            root_logger = logging.getLogger()
             rlh = RotatingFileHandler(self.logfile, maxBytes=524288, backupCount=10)
             rlh.setFormatter(logging.Formatter(fmt="%(asctime)s: %(module)s: %(levelname)s: %(message)s"))
-            log.addHandler(rlh)
+            root_logger.addHandler(rlh)
+            root_logger.setLevel(logging.INFO)
 
         self.__is_logging_initialized = True
 
