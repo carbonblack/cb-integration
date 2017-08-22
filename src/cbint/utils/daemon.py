@@ -336,7 +336,7 @@ class CbIntegrationDaemon(object):
                 self.logfile = "%s%s.log" % (log_path, self.name)
 
             root_logger = logging.getLogger()
-            rlh = RotatingFileHandler(self.logfile, maxBytes=524288, backupCount=10)
+            rlh = RotatingFileHandler(self.logfile, maxBytes=10485760, backupCount=10)
             rlh.setFormatter(logging.Formatter(fmt="%(asctime)s: %(module)s: %(levelname)s: %(message)s"))
             root_logger.addHandler(rlh)
             root_logger.setLevel(logging.INFO)
