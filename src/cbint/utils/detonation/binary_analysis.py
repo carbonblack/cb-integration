@@ -9,6 +9,7 @@ import logging
 import dateutil.parser
 
 from cbapi.response import Binary
+from cbint.utils.detonation import get_file_type
 
 log = logging.getLogger(__name__)
 
@@ -292,6 +293,11 @@ class DeepAnalysisThread(BinaryConsumerThread):
         except Exception as e:
             self.save_unsuccessful_analysis(md5sum, AnalysisTemporaryError(message="Binary not available in Cb",
                                                                            retry_in=60))
+            return
+
+        if get_file_type(fp) is None:
+            self.save_unsuccessful_analysis(md5sum, AnalysisPermanentError(message="Not a binary",
+                                                                           extended_message="Not of type PE, MachO or ELF."))
             return
 
         try:
