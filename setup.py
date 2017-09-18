@@ -22,5 +22,5 @@ setup(
         'Programming Language :: Python',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
-    install_requires=['flask', 'python-dateutil', 'netifaces', 'cbapi==1.3.3', 'cbfeeds==0.8.0', 'requests']
+    install_requires=['flask', 'python-dateutil', 'netifaces', 'cbapi>=1.3.4', 'cbfeeds==0.8.0', 'requests']
 )
