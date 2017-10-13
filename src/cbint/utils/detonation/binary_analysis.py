@@ -26,6 +26,7 @@ def get_file_type(fp):
 
     max_read_len = max([len(m[0]) for m in magic_numbers])
     fileheader = fp.read(max_read_len)
+    fp.seek(0)
     for magic, filetype in magic_numbers:
         if fileheader[:len(magic)] == magic:
             return filetype
