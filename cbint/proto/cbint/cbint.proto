@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package cbsdk;
+package cbint;
 
 // The greeting service definition.
 service Detonation {

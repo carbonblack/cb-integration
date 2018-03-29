@@ -29,10 +29,12 @@ setup(
         'prompt_toolkit',
         'pygments',
         'python-dateutil',
-        'protobuf'
+        'protobuf',
+        'flask',
+        'grpio',
+        'yara-python'
     ],
     project_urls={
         'Bug Reports': 'https://github.com/carbonblack/cb-integration/issues',
-
     },
 )
