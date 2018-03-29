@@ -31,7 +31,7 @@ setup(
         'python-dateutil',
         'protobuf',
         'flask',
-        'grpio',
+        'grpcio',
         'yara-python'
     ],
     project_urls={
