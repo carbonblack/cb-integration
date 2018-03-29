@@ -1,3 +1,0 @@
--e git://github.com/carbonblack/cbapi.git#egg=cbapi&subdirectory=client_apis/python
--e git://github.com/carbonblack/cbfeeds.git#egg=cbfeeds
--e git://github.com/carbonblack/cb-integration.git#egg=cbint

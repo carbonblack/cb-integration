@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package cbsdk;
+
+// The greeting service definition.
+service Detonation {
+  // Sends a greeting
+  rpc get_status (Status) returns (StatusResponse) {}
+}
+
+// The request message containing the user's name.
+message Status {
+  string name = 1;
+}
+
+// The response message containing the greetings
+message StatusResponse {
+  string message = 1;
+}
