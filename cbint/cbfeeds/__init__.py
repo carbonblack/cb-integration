@@ -14,9 +14,9 @@ class CbInvalidReport(CbException):
     pass
 
 
-from cbint.cbfeeds.feed import CbFeed
-from cbint.cbfeeds.feed import CbFeedInfo
-from cbint.cbfeeds.feed import CbReport
+from cbsdk.cbfeeds.feed import CbFeed
+from cbsdk.cbfeeds.feed import CbFeedInfo
+from cbsdk.cbfeeds.feed import CbReport
 
 
 

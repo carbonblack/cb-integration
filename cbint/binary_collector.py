@@ -3,7 +3,7 @@ import time
 import logging
 
 from cbapi.response.models import Binary
-from cbint.binary_database import BinaryDetonationResult
+from cbsdk.binary_database import BinaryDetonationResult
 
 logger = logging.getLogger(__name__)
 

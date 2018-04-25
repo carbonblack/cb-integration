@@ -4,19 +4,20 @@ import threading
 import traceback
 import base64
 import configparser
-import cbint.globals
+import cbsdk.globals
 
-from cbint.integration import Integration
-from cbint.binary_database import db
-from cbint.binary_database import BinaryDetonationResult
-from cbint.binary_collector import BinaryCollector
-from cbint.rpc_server import RpcServer
-from cbint.flask_feed import create_flask_app
+from cbsdk.analysis import AnalysisResult
+from cbsdk.integration import Integration
+from cbsdk.binary_database import db
+from cbsdk.binary_database import BinaryDetonationResult
+from cbsdk.binary_collector import BinaryCollector
+from cbsdk.rpc_server import RpcServer
+from cbsdk.flask_feed import create_flask_app
 from cbapi.response.rest_api import CbResponseAPI
 from cbapi.response.models import Binary
 from cbapi.errors import *
 
-from cbint.cbfeeds import CbReport, CbFeed
+from cbsdk.cbfeeds import CbReport, CbFeed
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class BinaryDetonation(Integration):
         # Create a CbApi instance for Cb Response
         #
         logger.debug("Attempting to connect to Cb Response...")
-        cb = CbResponseAPI(profile='eap')
+        cb = CbResponseAPI()
         self.cb_response_api = cb
         logger.debug("Connected to Cb Response")
 
@@ -62,7 +63,11 @@ class BinaryDetonation(Integration):
         self.flask_feed = create_flask_app()
         logger.debug(self.flask_feed)
         flask_thread = threading.Thread(target=self.flask_feed.run,
-                                        kwargs={"port": 5000, "debug": False, "use_reloader": False})
+                                        kwargs={"host": "0.0.0.0",
+                                                "port": 5000,
+                                                "debug": False,
+                                                "use_reloader": False})
+
         flask_thread.daemon = True
         flask_thread.start()
         logger.debug("init complete")
@@ -90,7 +95,7 @@ class BinaryDetonation(Integration):
         """
         :return:
         """
-        cb = CbResponseAPI(profile='eap')
+        cb = CbResponseAPI()
 
         while (True):
             for detonation in BinaryDetonationResult.select():
@@ -119,7 +124,7 @@ class BinaryDetonation(Integration):
                       'link': '',
                       'id': f'binary_{result.md5}',
                       'title': '',
-                      'description': result.success_msg
+                      'description': result.last_success_msg
                       }
 
             self.reports.append(CbReport(**fields))
@@ -128,32 +133,26 @@ class BinaryDetonation(Integration):
             with open("feed/feed.json", 'w') as fp:
                 fp.write(self.feed.dump())
 
-    def report_successful_detonation(self, md5: str, score: int = 0, success_msg: str = ''):
-        """
-        :param md5:
-        :param score:
-        :param success_msg:
-        :return:
-        """
-        bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == md5)
-        bdr.score = score
-        bdr.success_msg = success_msg
+    def report_successful_detonation(self, result: AnalysisResult):
+        bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
+        bdr.score = result.score
+        bdr.last_success_msg = result.short_result
+        bdr.last_scan = result.last_scan_date
         bdr.save()
+
+        logger.info(f'{result.md5} scored at {result.score}')
 
         #
         # We want to update the feed if a new reports comes in with score > 0
         #
-        if score > 0:
+        if result.score > 0:
             self.generate_feed_from_db()
 
-    def report_failure_detonation(self, md5: str, score: int = 0, error_msg: str = ''):
-        """
-        :param md5:
-        :param score:
-        :param error_msg:
-        :return:
-        """
-        bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == md5)
-        bdr.score = score
-        bdr.last_error_msg = error_msg
+    def report_failure_detonation(self, result: AnalysisResult):
+        bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
+        bdr.score = result.score
+        bdr.last_error_msg = result.last_error_msg
+        bdr.last_error_date = result.last_error_date
         bdr.save()
+
+        logger.info(f'{result.md5} failed detonation')

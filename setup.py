@@ -2,9 +2,10 @@ from setuptools import setup, find_packages
 
 setup(
     name='cbint',
-    version='1.0.0',
+    version='2.0.0',
     description='Carbon Black Developer Network Integration Framework',
-    url='https://github.com/carbonblack/cb-integration',
+    # long_description=,
+    url='https://github.com/carbonblack/cbsdk',
     author='Carbon Black Developer Network',
     author_email='dev-support@carbonblack.com',
     classifiers=[
@@ -30,9 +31,9 @@ setup(
         'pygments',
         'python-dateutil',
         'protobuf',
-        'flask',
+        'yara-python',
         'grpcio',
-        'yara-python'
+        'flask'
     ],
     project_urls={
         'Bug Reports': 'https://github.com/carbonblack/cb-integration/issues',

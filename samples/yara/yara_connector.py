@@ -3,8 +3,9 @@ import time
 import logging
 import os
 import traceback
-from cbint.detonation import BinaryDetonation
-from cbint.analysis import AnalysisResult
+import datetime
+from cbsdk.detonation import BinaryDetonation
+from cbsdk.analysis import AnalysisResult
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -16,7 +17,8 @@ def analyze_binary(md5sum, binary_file_stream):
     logger.debug("%s: in analyze_binary" % md5sum)
     d = binary_file_stream.read()
 
-    analysis_result = AnalysisResult()
+    analysis_result = AnalysisResult(md5sum)
+    analysis_result.last_scan_date = datetime.datetime.now()
 
     try:
         start_analyze_time = time.time()
@@ -24,16 +26,22 @@ def analyze_binary(md5sum, binary_file_stream):
         end_analyze_time = time.time()
         logger.debug("%s: Took %0.3f seconds to analyze the file" % (md5sum, end_analyze_time - start_analyze_time))
     except yara.TimeoutError:
+        #
+        # yara timed out
+        #
         analysis_result.last_error_msg = "Analysis timed out after 60 seconds"
         analysis_result.stop_future_scans = True
     except yara.Error:
+        #
+        # Yara errored while trying to scan binary
+        #
         analysis_result.last_error_msg = "Yara exception"
     else:
         if matches:
             score = getHighScore(matches)
             analysis_result.score = score
             analysis_result.short_result = "Matched yara rules: %s" % ', '.join([match.rule for match in matches])
-            analysis_result.long_result = "%s" % ', '.join([match.rule for match in matches])
+            analysis_result.long_result = analysis_result.long_result
         else:
             analysis_result.score = 0
 
@@ -87,10 +95,10 @@ def main():
         logger.info(f"scanning {binary.md5}...")
         try:
             analysis_result = analyze_binary(binary.md5, binary.file)
-            bd.report_successful_detonation(binary.md5, analysis_result.score, analysis_result.short_result)
+            bd.report_successful_detonation(analysis_result)
         except Exception as e:
             if analysis_result:
-                bd.report_failure_detonation(binary.md5, error_msg=analysis_result.last_error_msg)
+                bd.report_failure_detonation(analysis_result)
             logger.error(traceback.format_exc())
 
         time.sleep(5)

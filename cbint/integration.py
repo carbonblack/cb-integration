@@ -1,6 +1,6 @@
 import configparser
 import logging
-import cbint.globals
+import cbsdk.globals
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +9,6 @@ class Integration(object):
     """
     Base Class
     """
-
     def __init__(self):
         self.summary = ''
         self.tech_data = ''
@@ -25,8 +24,4 @@ class Integration(object):
 
     def validate_base_config(self):
         cfg_parser = configparser.ConfigParser().read('integration.conf')
-        cbint.globals.g_config = cfg_parser
-        pass
-
-    def validate_ext_config(self):
-        pass
+        cbsdk.globals.g_config = cfg_parser
