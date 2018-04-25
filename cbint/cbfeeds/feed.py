@@ -4,9 +4,9 @@ import base64
 import re
 import time
 
-from cbsdk.cbfeeds import CbInvalidReport
-from cbsdk.cbfeeds import CbIconError
-from cbsdk.cbfeeds import CbInvalidFeed
+from cbint.cbfeeds import CbInvalidReport
+from cbint.cbfeeds import CbIconError
+from cbint.cbfeeds import CbInvalidFeed
 
 
 class CbJSONEncoder(json.JSONEncoder):

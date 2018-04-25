@@ -1,8 +1,8 @@
 import configparser
 import logging
-from cbsdk.integration import Integration
+from cbint.integration import Integration
 
-import cbsdk.globals
+import cbint.globals
 
 logger = logging.getLogger(__name__)
 

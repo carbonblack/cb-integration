@@ -4,8 +4,8 @@ import logging
 import os
 import traceback
 import datetime
-from cbsdk.detonation import BinaryDetonation
-from cbsdk.analysis import AnalysisResult
+from cbint.detonation import BinaryDetonation
+from cbint.analysis import AnalysisResult
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

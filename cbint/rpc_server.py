@@ -4,8 +4,8 @@ import grpc
 import logging
 import traceback
 
-import cbsdk.cbint_pb2 as cbint_pb2
-import cbsdk.cbint_pb2_grpc as cbint_pb2_grpc
+import cbint.cbint_pb2 as cbint_pb2
+import cbint.cbint_pb2_grpc as cbint_pb2_grpc
 
 logger = logging.getLogger(__name__)
 
