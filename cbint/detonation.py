@@ -4,20 +4,20 @@ import threading
 import traceback
 import base64
 import configparser
-import cbsdk.globals
+import cbint.globals
 
-from cbsdk.analysis import AnalysisResult
-from cbsdk.integration import Integration
-from cbsdk.binary_database import db
-from cbsdk.binary_database import BinaryDetonationResult
-from cbsdk.binary_collector import BinaryCollector
-from cbsdk.rpc_server import RpcServer
-from cbsdk.flask_feed import create_flask_app
+from cbint.analysis import AnalysisResult
+from cbint.integration import Integration
+from cbint.binary_database import db
+from cbint.binary_database import BinaryDetonationResult
+from cbint.binary_collector import BinaryCollector
+from cbint.rpc_server import RpcServer
+from cbint.flask_feed import create_flask_app
 from cbapi.response.rest_api import CbResponseAPI
 from cbapi.response.models import Binary
 from cbapi.errors import *
 
-from cbsdk.cbfeeds import CbReport, CbFeed
+from cbint.cbfeeds import CbReport, CbFeed
 
 logger = logging.getLogger(__name__)
 
