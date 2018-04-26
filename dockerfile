@@ -4,7 +4,6 @@ FROM cbsdk-base
 # copy setup.py and cbsdk directory
 #
 COPY setup.py /
-#COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY cbint /cbint
 COPY credentials.response /etc/carbonblack/
 
@@ -19,11 +18,6 @@ COPY connectors /connectors
 COPY conf /conf
 
 #
-# Change working directory
-#
-WORKDIR /samples/yara
-
-#
 # open port 5000
 #
 EXPOSE 5000
@@ -34,7 +28,11 @@ EXPOSE 5000
 RUN python3 -c "import cbint"
 
 #
-# Actually run the the yara connector
+# Sanity Check
 #
-#CMD [ "python3", "yara_connector.py" ]
+CMD ["python3", "-c", "import cbint"]
+
+#
+# Start supervisord
+#
 CMD ["/usr/bin/supervisord", "-c", "/conf/supervisord/supervisord.conf"]
