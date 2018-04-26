@@ -1,24 +1,22 @@
-FROM python:3.6
-
-RUN apt-get update && apt-get install -y nginx supervisor
+FROM cbsdk-base
 
 #
 # copy setup.py and cbsdk directory
 #
 COPY setup.py /
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+#COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY cbint /cbint
 COPY credentials.response /etc/carbonblack/
 
 #
-# run the install script for cbsdk
-#
-RUN python3 setup.py install
-
-#
 # copy over the connectors/samples
 #
-COPY samples /samples
+COPY connectors /connectors
+
+#
+# copy over conf files
+#
+COPY conf /conf
 
 #
 # Change working directory
@@ -39,5 +37,4 @@ RUN python3 -c "import cbint"
 # Actually run the the yara connector
 #
 #CMD [ "python3", "yara_connector.py" ]
-CMD ["/usr/bin/supervisord"]
-
+CMD ["/usr/bin/supervisord", "-c", "/conf/supervisord/supervisord.conf"]

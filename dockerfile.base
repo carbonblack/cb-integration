@@ -1,0 +1,21 @@
+FROM python:3.6
+#
+# Update the virtual machine
+#
+RUN apt-get update && apt-get install -y nginx supervisor vim net-tools
+
+#
+# copy setup.py
+#
+COPY setup.py /
+
+#
+# Copy over cbint
+# Note this will be changed to pip install
+#
+COPY cbint /cbint
+
+#
+# run the install script for cbsdk
+#
+RUN python3 setup.py install

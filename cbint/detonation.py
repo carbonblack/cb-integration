@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 class BinaryDetonation(Integration):
     def __init__(self):
         super().__init__()
+
         #
         # Connect to the sqlite db and make sure the tables are created
         #
