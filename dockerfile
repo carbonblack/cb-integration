@@ -42,11 +42,6 @@ EXPOSE 5000
 RUN python3 -c "import cbint"
 
 #
-# Sanity Check
-#
-CMD ["python3", "-c", "import cbint"]
-
-#
 # Start supervisord
 #
 CMD ["/usr/bin/supervisord", "-c", "/conf/supervisord/supervisord.conf"]
