@@ -90,10 +90,7 @@ def main():
                      icon_path="icon/yara-logo.png",
                      display_name="Yara")
 
-
-    logger.info(bd.inside_docker())
-
-    yara_rules = compile_rules('yara_rules')
+    yara_rules = compile_rules(os.path.join(bd.get_volume_directory(), 'yara_rules'))
     analysis_result = None
     for binary in bd.binaries_to_scan():
         logger.info(f"scanning {binary.md5}...")
