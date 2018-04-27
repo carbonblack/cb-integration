@@ -1,7 +1,16 @@
 from peewee import *
 from playhouse.sqliteq import SqliteQueueDatabase
+import logging
 
-db = SqliteQueueDatabase('binary.db', timeout=30)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
+#
+# autostart must be False if we intend to dynamically create the database.
+#
+db = SqliteQueueDatabase(None, autostart=False)
+
 
 class BinaryDetonationResult(Model):
     md5 = CharField()

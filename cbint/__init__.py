@@ -1,5 +1,4 @@
 import logging
-
+logging.basicConfig()
 logger = logging.getLogger(__name__)
 
-logging.basicConfig(level=logging.INFO)

@@ -1,11 +1,12 @@
 import threading
 import time
 import logging
+import traceback
 
 from cbapi.response.models import Binary
-from cbint.binary_database import BinaryDetonationResult
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class BinaryCollector(threading.Thread):
@@ -23,16 +24,21 @@ class BinaryCollector(threading.Thread):
         self.terminate = True
 
     def run(self):
+        from cbint.binary_database import BinaryDetonationResult
         binary_query = self.cb.select(Binary).where(self.query)
         self.total_results = len(binary_query)
 
         for binary in binary_query:
             if self.terminate:
                 break
-            det = BinaryDetonationResult()
-            det.md5 = binary.md5
-            #
-            # Save into database
-            #
-            det.save()
-            time.sleep(self.sleep_interval)
+            try:
+                det = BinaryDetonationResult()
+                det.md5 = binary.md5
+                #
+                # Save into database
+                #
+                det.save()
+                time.sleep(self.sleep_interval)
+            except Exception as e:
+                logger.info(traceback.format_exc())
+                continue

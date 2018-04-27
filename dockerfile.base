@@ -4,18 +4,15 @@ FROM python:3.6
 #
 RUN apt-get update && apt-get install -y nginx supervisor vim net-tools
 
+###### This part below can be removed once we get this more stable
+###### This is just to save time
 #
-# copy setup.py
 #
-COPY setup.py /
+#
+COPY requirements.txt /requirements.txt
 
 #
-# Copy over cbint
-# Note this will be changed to pip install
 #
-COPY cbint /cbint
+#
+RUN pip install -r requirements.txt
 
-#
-# run the install script for cbsdk
-#
-RUN python3 setup.py install

@@ -81,13 +81,17 @@ def main():
     #
     # Should we move all these strings into a config file?
     #
-    bd = BinaryDetonation()
+    bd = BinaryDetonation(name="yara")
+
     bd.set_feed_info(name="Yara",
                      summary="Scan binaries collected by Carbon Black with Yara.",
                      tech_data="There are no requirements to share any data with Carbon Black to use this feed.",
                      provider_url="http://plusvic.github.io/yara/",
                      icon_path="icon/yara-logo.png",
                      display_name="Yara")
+
+
+    logger.info(bd.inside_docker())
 
     yara_rules = compile_rules('yara_rules')
     analysis_result = None
@@ -101,7 +105,7 @@ def main():
                 bd.report_failure_detonation(analysis_result)
             logger.error(traceback.format_exc())
 
-        time.sleep(5)
+        time.sleep(1)
 
 
 if __name__ == '__main__':

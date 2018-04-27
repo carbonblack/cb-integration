@@ -1,10 +1,24 @@
 FROM cbsdk-base
 
 #
-# copy setup.py and cbsdk directory
+# copy setup.py
 #
 COPY setup.py /
+
+#
+# Copy over cbint
+# Note this will be changed to pip install
+#
 COPY cbint /cbint
+
+#
+# run the install script for cbsdk
+#
+RUN python3 setup.py install
+
+#
+# copy credential file
+#
 COPY credentials.response /etc/carbonblack/
 
 #

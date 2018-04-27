@@ -5,6 +5,7 @@ import traceback
 import base64
 import configparser
 import cbint.globals
+import os
 
 from cbint.analysis import AnalysisResult
 from cbint.integration import Integration
@@ -20,11 +21,12 @@ from cbapi.errors import *
 from cbint.cbfeeds import CbReport, CbFeed
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class BinaryDetonation(Integration):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name=""):
+        super().__init__(name=name)
 
         #
         # Connect to the sqlite db and make sure the tables are created
@@ -32,11 +34,17 @@ class BinaryDetonation(Integration):
 
         logger.debug("Attempting to connect to sqlite database...")
         try:
+            logger.debug("Binary Db is located: {0}".format(
+                os.path.join(cbint.globals.g_volume_directory)))
+
+            db.init(os.path.join(cbint.globals.g_volume_directory, "binary.db"))
+            db.start()
             db.connect()
             db.create_tables([BinaryDetonationResult])
             self.db_object = db
         except:
             logger.error(traceback.format_exc())
+            logger.info("here2")
         logger.debug("Connected to sqlite database")
 
         #
