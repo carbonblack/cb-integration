@@ -19,6 +19,10 @@ autorestart=true
 {% endfor %}
 ''')
 
+nginx_template = Template('''
+
+''')
+
 def main():
 
     #

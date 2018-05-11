@@ -37,6 +37,7 @@ class BinaryDetonation(Integration):
             logger.debug("Binary Db is located: {0}".format(
                 os.path.join(cbint.globals.g_volume_directory)))
 
+            #/conf/yara/binary.db
             db.init(os.path.join(cbint.globals.g_volume_directory, "binary.db"))
             db.start()
             db.connect()
@@ -44,7 +45,6 @@ class BinaryDetonation(Integration):
             self.db_object = db
         except:
             logger.error(traceback.format_exc())
-            logger.info("here2")
         logger.debug("Connected to sqlite database")
 
         #
@@ -69,16 +69,16 @@ class BinaryDetonation(Integration):
         rpc_server.start(50051)
         logger.debug("RPC Server has started")
 
-        self.flask_feed = create_flask_app()
-        logger.debug(self.flask_feed)
-        flask_thread = threading.Thread(target=self.flask_feed.run,
-                                        kwargs={"host": "0.0.0.0",
-                                                "port": 5000,
-                                                "debug": False,
-                                                "use_reloader": False})
-
-        flask_thread.daemon = True
-        flask_thread.start()
+        # self.flask_feed = create_flask_app()
+        # logger.debug(self.flask_feed)
+        # flask_thread = threading.Thread(target=self.flask_feed.run,
+        #                                 kwargs={"host": "0.0.0.0",
+        #                                         "port": 5000,
+        #                                         "debug": False,
+        #                                         "use_reloader": False})
+        #
+        # flask_thread.daemon = True
+        # flask_thread.start()
         logger.debug("init complete")
 
     def set_feed_info(self, name, summary='', tech_data='', provider_url='', icon_path="", display_name=''):

@@ -31,10 +31,13 @@ COPY connectors /connectors
 #
 COPY conf /conf
 
+COPY /conf/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY /conf/nginx/nginx-yara.conf /etc/nginx/conf.d/yara.conf
+
 #
-# open port 5000
+# open ports
 #
-EXPOSE 5000
+EXPOSE 22 80 5000
 
 #
 # Quick test to make sure we can import cbsdk
