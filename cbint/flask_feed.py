@@ -9,6 +9,9 @@ from flask import Blueprint, request, session, g, redirect, url_for, abort, \
 
 logger = logging.getLogger(__name__)
 
+def statistics():
+    pass
+
 
 def index():
     logger.info(os.path.join(os.getcwd(), 'feed'))

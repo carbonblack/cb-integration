@@ -90,7 +90,7 @@ def main():
                      icon_path="icon/yara-logo.png",
                      display_name="Yara")
 
-    yara_rules = compile_rules(os.path.join(bd.get_volume_directory(), 'yara_rules'))
+    yara_rules = compile_rules(os.path.join(bd.get_volume_directory(), bd.name, 'yara_rules'))
     analysis_result = None
     for binary in bd.binaries_to_scan():
         logger.info(f"scanning {binary.md5}...")

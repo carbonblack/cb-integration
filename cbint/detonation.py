@@ -6,13 +6,13 @@ import base64
 import configparser
 import cbint.globals
 import os
+import queue
 
 from cbint.analysis import AnalysisResult
 from cbint.integration import Integration
 from cbint.binary_database import db
 from cbint.binary_database import BinaryDetonationResult
 from cbint.binary_collector import BinaryCollector
-from cbint.rpc_server import RpcServer
 from cbint.flask_feed import create_flask_app
 from cbapi.response.rest_api import CbResponseAPI
 from cbapi.response.models import Binary
@@ -23,10 +23,13 @@ from cbint.cbfeeds import CbReport, CbFeed
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+BINARY_QUEUE_MAX_SIZE = 10
+
 
 class BinaryDetonation(Integration):
     def __init__(self, name=""):
         super().__init__(name=name)
+        self.binary_queue = queue.Queue(maxsize=BINARY_QUEUE_MAX_SIZE)
 
         #
         # Connect to the sqlite db and make sure the tables are created
@@ -37,8 +40,8 @@ class BinaryDetonation(Integration):
             logger.debug("Binary Db is located: {0}".format(
                 os.path.join(cbint.globals.g_volume_directory)))
 
-            #/conf/yara/binary.db
-            db.init(os.path.join(cbint.globals.g_volume_directory, "binary.db"))
+            # /conf/yara/binary.db
+            db.init(os.path.join(cbint.globals.g_volume_directory, self.name, "binary.db"))
             db.start()
             db.connect()
             db.create_tables([BinaryDetonationResult])
@@ -64,24 +67,30 @@ class BinaryDetonation(Integration):
         self.binary_collector = bc
         logger.debug("Binary Collector has started")
 
-        logger.debug("Starting RPC server...")
-        rpc_server = RpcServer()
-        rpc_server.start(50051)
-        logger.debug("RPC Server has started")
+        self.flask_feed = create_flask_app()
+        logger.debug(self.flask_feed)
+        self.flask_thread = threading.Thread(target=self.flask_feed.run,
+                                             kwargs={"host": "0.0.0.0",
+                                                     "port": 5000,
+                                                     "debug": False,
+                                                     "use_reloader": False})
 
-        # self.flask_feed = create_flask_app()
-        # logger.debug(self.flask_feed)
-        # flask_thread = threading.Thread(target=self.flask_feed.run,
-        #                                 kwargs={"host": "0.0.0.0",
-        #                                         "port": 5000,
-        #                                         "debug": False,
-        #                                         "use_reloader": False})
-        #
-        # flask_thread.daemon = True
-        # flask_thread.start()
+        self.flask_thread.daemon = True
+        self.flask_thread.start()
+
+        self.db_inserter_thread = threading.Thread(target=self.insert_binaries_from_db)
+        self.db_inserter_thread.daemon = True
+        self.db_inserter_thread.start()
+
         logger.debug("init complete")
 
-    def set_feed_info(self, name, summary='', tech_data='', provider_url='', icon_path="", display_name=''):
+    def set_feed_info(self,
+                      name,
+                      summary='',
+                      tech_data='',
+                      provider_url='',
+                      icon_path='',
+                      display_name=''):
         """
         :param name:
         :param summary:
@@ -101,22 +110,30 @@ class BinaryDetonation(Integration):
                          "display_name": display_name}
 
     def binaries_to_scan(self):
+        while True:
+            binary = self.binary_queue.get(block=True, timeout=None)
+            self.binary_queue.task_done()
+            yield binary
+
+    def insert_binaries_from_db(self):
         """
         :return:
         """
         cb = CbResponseAPI()
 
-        while (True):
+        while True:
             for detonation in BinaryDetonationResult.select():
                 md5 = detonation.md5
                 binary_query = cb.select(Binary).where(f"md5:{md5}")
                 if binary_query:
                     try:
                         binary_query[0].file
-                    except ObjectNotFoundError:
-                        continue
 
-                    yield (binary_query[0])
+                    except ObjectNotFoundError:
+                        detonation.binary_not_available = True
+                        detonation.server_added_timestamp = binary_query[0].server_added_timestamp
+                        continue
+                    self.binary_queue.put(binary_query[0], block=True, timeout=15)
             time.sleep(1)
 
     def generate_feed_from_db(self):

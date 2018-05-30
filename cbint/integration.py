@@ -52,8 +52,8 @@ class Integration(object):
             #
             # For Debugging outside of Docker
             #
-            cbint.globals.g_base_directory = "./"
-            cbint.globals.g_volume_directory = "./"
+            cbint.globals.g_base_directory = os.path.join(os.path.dirname(__file__), "..")
+            cbint.globals.g_volume_directory = os.path.join(os.path.dirname(__file__), "../conf")
         logger.debug(f'base directory: {cbint.globals.g_base_directory}')
         logger.debug(f'volume directory: {cbint.globals.g_volume_directory}')
 
