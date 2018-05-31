@@ -22,6 +22,8 @@ class BinaryDetonationResult(Model):
 
     score = IntegerField(default=0)
 
+    scan_count = IntegerField(default=0)
+
     #
     # If There was a permanent error then set this to True
     #
@@ -31,7 +33,7 @@ class BinaryDetonationResult(Model):
     # if we could not download the binary then set this to False
     # We will need to wait for alliance download
     #
-    binary_not_available = BooleanField(default=False, null=True)
+    binary_not_available = BooleanField(null=True)
 
     #
     # Last attempt to scan this binary.  Which could have thrown an error if the binary was not available to download
