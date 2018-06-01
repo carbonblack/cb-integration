@@ -124,7 +124,9 @@ class BinaryDetonation(Integration):
 
     def download_binary_insert_queue(self, binary_db_entry):
         md5 = binary_db_entry.md5
-        cb = CbResponseAPI()
+        cb = CbResponseAPI(url=cbint.globals.g_config.get("carbonblack_server_url"),
+                           token=cbint.globals.g_config.get("carbonblack_server_token"),
+                           ssl_verify=cbint.globals.g_config.getboolean("carbonblack_server_sslverify"))
         binary_query = cb.select(Binary).where(f"md5:{md5}")
         if binary_query:
             try:

@@ -52,7 +52,7 @@ class Integration(object):
     def set_connector_directory(self):
         if self.inside_docker():
             cbint.globals.g_base_directory = "/"
-            cbint.globals.g_volume_directory = os.path.join("/vol", self.name)
+            cbint.globals.g_volume_directory = "/vol"
         else:
             #
             # For Debugging outside of Docker
