@@ -1,17 +1,18 @@
 import configparser
 import logging
 import os
+import sys
 
 import cbint.globals
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class Integration(object):
     """
     Base Class
     """
+
     def __init__(self, name=""):
         self.summary = ''
         self.tech_data = ''
@@ -24,16 +25,20 @@ class Integration(object):
         self.name = name
 
         self.set_connector_directory()
-        self.validate_base_config()
-        pass
+        self.validate_general_config()
 
-    def validate_base_config(self):
-        cfg_parser = configparser.ConfigParser().read(
-            os.path.join(
-                self.get_volume_directory(),
-                'integration.conf'))
+    def validate_general_config(self):
+        cfg_parser = configparser.ConfigParser()
+        cfg_parser.read(os.path.join(self.get_volume_directory(), self.name, "{0}.conf".format(self.name)))
 
         cbint.globals.g_config = cfg_parser
+
+        if 'general' not in cfg_parser.sections():
+            logger.error('config file requires a general section')
+            # TODO add more validation here
+            sys.exit(-1)
+
+        cbint.globals.g_config = cfg_parser['general']
 
     def inside_docker(self):
         """
@@ -47,13 +52,13 @@ class Integration(object):
     def set_connector_directory(self):
         if self.inside_docker():
             cbint.globals.g_base_directory = "/"
-            cbint.globals.g_volume_directory = os.path.join("/conf", self.name)
+            cbint.globals.g_volume_directory = os.path.join("/vol", self.name)
         else:
             #
             # For Debugging outside of Docker
             #
             cbint.globals.g_base_directory = os.path.join(os.path.dirname(__file__), "..")
-            cbint.globals.g_volume_directory = os.path.join(os.path.dirname(__file__), "../conf")
+            cbint.globals.g_volume_directory = os.path.join(os.path.dirname(__file__), "../vol")
         logger.debug(f'base directory: {cbint.globals.g_base_directory}')
         logger.debug(f'volume directory: {cbint.globals.g_volume_directory}')
 

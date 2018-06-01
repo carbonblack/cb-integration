@@ -18,6 +18,7 @@ from cbint.flask_feed import create_flask_app
 from cbapi.response.rest_api import CbResponseAPI
 from cbapi.response.models import Binary
 from cbapi.errors import *
+import cbint.globals
 
 from cbint.cbfeeds import CbReport, CbFeed
 
@@ -38,7 +39,7 @@ class BinaryDetonation(Integration):
 
         logger.debug("Attempting to connect to sqlite database...")
         try:
-            db.init(os.path.join(cbint.globals.g_volume_directory, self.name, "binary.db"))
+            db.init(os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db"))
             db.start()
             db.connect()
             db.create_tables([BinaryDetonationResult])
@@ -48,26 +49,18 @@ class BinaryDetonation(Integration):
         logger.debug("Connected to sqlite database")
 
         #
-        # Create a CbApi instance for Cb Response
-        #
-        logger.debug("Attempting to connect to Cb Response...")
-        cb = CbResponseAPI()
-        self.cb_response_api = cb
-        logger.debug("Connected to Cb Response")
-
-        #
         # Create a Binary Collector and start it
         #
         logger.debug("Starting binary collector...")
-        bc = BinaryCollector(cb=cb, query='')
+        bc = BinaryCollector(query=cbint.globals.g_config.get("binary_filter_query"))
         bc.start()
         self.binary_collector = bc
         logger.debug("Binary Collector has started")
 
         self.flask_feed = create_flask_app()
         self.flask_thread = threading.Thread(target=self.flask_feed.run,
-                                             kwargs={"host": "0.0.0.0",
-                                                     "port": 5000,
+                                             kwargs={"host": "127.0.0.1",
+                                                     "port": cbint.globals.g_config.getint('listener_port', 8080),
                                                      "debug": False,
                                                      "use_reloader": False})
 
@@ -144,27 +137,35 @@ class BinaryDetonation(Integration):
 
             self.binary_queue.put(binary_query[0], block=True, timeout=None)
 
-
     def insert_binaries_from_db(self):
         """
         :return:
         """
         while True:
-            #
-            # First touch all binaries to trigger alliance download
-            #
-            for detonation in BinaryDetonationResult.select() \
-                    .where(BinaryDetonationResult.binary_not_available.is_null()) \
-                    .where(BinaryDetonationResult.last_scan_date.is_null() or \
-                           BinaryDetonationResult.last_scan_date < datetime.today() - timedelta(days=180))\
-                    .limit(100):
-                self.download_binary_insert_queue(detonation)
+            try:
+                #
+                # First touch all binaries to trigger alliance download
+                #
 
-            #
-            # Next attempt to rescan binaries that needed to be downloaded by alliance
-            #
-            for detonation in self.get_possible_alliance_binary():
-                self.download_binary_insert_queue(detonation)
+                #
+                # Should we attempt to get binaries that are downloadable?
+                # Configurable date for binaries?
+                #
+                for detonation in BinaryDetonationResult.select() \
+                        .where(BinaryDetonationResult.binary_not_available.is_null()) \
+                        .where(BinaryDetonationResult.last_scan_date.is_null() or \
+                               BinaryDetonationResult.last_scan_date < datetime.today() - timedelta(days=180)) \
+                        .order_by(BinaryDetonationResult.server_added_timestamp.desc()) \
+                        .limit(100):
+                    self.download_binary_insert_queue(detonation)
+
+                #
+                # Next attempt to rescan binaries that needed to be downloaded by alliance
+                #
+                for detonation in self.get_possible_alliance_binary():
+                    self.download_binary_insert_queue(detonation)
+            except:
+                logger.error(traceback.format_exc())
 
             time.sleep(.1)
 
@@ -188,14 +189,14 @@ class BinaryDetonation(Integration):
             self.reports.append(CbReport(**fields))
             self.feed = CbFeed(self.feedinfo, self.reports)
 
-        with open(os.path.join(cbint.globals.g_volume_directory, self.name, "db", "feed.json"), 'w') as fp:
+        with open(os.path.join(cbint.globals.g_volume_directory, self.name, "feed", "feed.json"), 'w') as fp:
             fp.write(self.feed.dump())
 
     def report_successful_detonation(self, result: AnalysisResult):
         bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
         bdr.score = result.score
         bdr.last_success_msg = result.short_result
-        bdr.last_scan_date = bdr.last_scan_attempt = result.last_scan_date
+        bdr.last_scan_date = bdr.last_scan_attempt = datetime.now()
         bdr.binary_not_available = False
         bdr.scan_count += 1
         bdr.save()
@@ -212,7 +213,7 @@ class BinaryDetonation(Integration):
         bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
         bdr.score = result.score
         bdr.last_error_msg = result.last_error_msg
-        bdr.last_error_date = result.last_error_date
+        bdr.last_error_date = datetime.now()
         bdr.stop_future_scans = True
         bdr.save()
 

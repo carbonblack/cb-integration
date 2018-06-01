@@ -17,11 +17,6 @@ COPY cbint /cbint
 RUN python3 setup.py install
 
 #
-# copy credential file
-#
-COPY credentials.response /etc/carbonblack/
-
-#
 # copy over the connectors/samples
 #
 COPY connectors /connectors
@@ -29,15 +24,12 @@ COPY connectors /connectors
 #
 # copy over conf files
 #
-COPY conf /conf
-
-COPY /conf/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY /conf/nginx/nginx-yara.conf /etc/nginx/conf.d/yara.conf
+COPY vol /vol
 
 #
 # open ports
 #
-EXPOSE 22 80 5000
+EXPOSE 80
 
 #
 # Quick test to make sure we can import cbsdk
@@ -47,4 +39,4 @@ RUN python3 -c "import cbint"
 #
 # Start supervisord
 #
-CMD ["/usr/bin/supervisord", "-c", "/conf/supervisord/supervisord.conf"]
+CMD ["/usr/bin/supervisord", "-c", "/vol/supervisord/supervisord.conf"]
