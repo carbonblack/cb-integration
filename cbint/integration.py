@@ -4,8 +4,10 @@ import os
 import sys
 
 import cbint.globals
+from logging.handlers import RotatingFileHandler
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class Integration(object):
@@ -25,7 +27,21 @@ class Integration(object):
         self.name = name
 
         self.set_connector_directory()
+        self.set_logging()
         self.validate_general_config()
+
+    def set_logging(self):
+        if self.inside_docker():
+            log_file = os.path.join(cbint.globals.g_volume_directory, "{0}.log".format(self.name))
+        else:
+            log_file = "{0}.log".format(self.name)
+
+        log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(funcName)s(%(lineno)d) %(message)s')
+        file_handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=5)
+        file_handler.setFormatter(log_formatter)
+
+        logger = logging.getLogger("cbint")
+        logger.addHandler(file_handler)
 
     def validate_general_config(self):
         cfg_parser = configparser.ConfigParser()

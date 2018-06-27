@@ -29,7 +29,7 @@ COPY vol /vol
 #
 # open ports
 #
-EXPOSE 80
+EXPOSE 80 9001
 
 #
 # Quick test to make sure we can import cbsdk

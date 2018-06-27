@@ -46,3 +46,4 @@ nosetests.xml
 .DS_Store
 
 /.pytest_cache
+/ui/node_modules

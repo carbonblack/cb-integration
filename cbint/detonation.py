@@ -3,8 +3,7 @@ import time
 import threading
 import traceback
 import base64
-import configparser
-import cbint.globals
+from cbint.globals import g_statistics, g_config, g_base_directory, g_volume_directory
 import os
 import queue
 from datetime import datetime, timedelta
@@ -18,9 +17,10 @@ from cbint.flask_feed import create_flask_app
 from cbapi.response.rest_api import CbResponseAPI
 from cbapi.response.models import Binary
 from cbapi.errors import *
-import cbint.globals
 
 from cbint.cbfeeds import CbReport, CbFeed
+
+from cbint.utils.helpers import report_error_statistics
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -39,20 +39,24 @@ class BinaryDetonation(Integration):
 
         logger.debug("Attempting to connect to sqlite database...")
         try:
-            db.init(os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db"))
+            db.init(os.path.join(g_volume_directory, self.name, "db", "binary.db"))
             db.start()
             db.connect()
             db.create_tables([BinaryDetonationResult])
             self.db_object = db
-        except:
+        except Exception as e:
             logger.error(traceback.format_exc())
+            report_error_statistics(str(e))
+
+
+        time.sleep(1)
         logger.debug("Connected to sqlite database")
 
         #
         # Create a Binary Collector and start it
         #
         logger.debug("Starting binary collector...")
-        bc = BinaryCollector(query=cbint.globals.g_config.get("binary_filter_query"))
+        bc = BinaryCollector(query=g_config.get("binary_filter_query"))
         bc.start()
         self.binary_collector = bc
         logger.debug("Binary Collector has started")
@@ -60,7 +64,7 @@ class BinaryDetonation(Integration):
         self.flask_feed = create_flask_app()
         self.flask_thread = threading.Thread(target=self.flask_feed.run,
                                              kwargs={"host": "127.0.0.1",
-                                                     "port": cbint.globals.g_config.getint('listener_port', 8080),
+                                                     "port": g_config.getint('listener_port', 8080),
                                                      "debug": False,
                                                      "use_reloader": False})
 
@@ -124,9 +128,9 @@ class BinaryDetonation(Integration):
 
     def download_binary_insert_queue(self, binary_db_entry):
         md5 = binary_db_entry.md5
-        cb = CbResponseAPI(url=cbint.globals.g_config.get("carbonblack_server_url"),
-                           token=cbint.globals.g_config.get("carbonblack_server_token"),
-                           ssl_verify=cbint.globals.g_config.getboolean("carbonblack_server_sslverify"))
+        cb = CbResponseAPI(url=g_config.get("carbonblack_server_url"),
+                           token=g_config.get("carbonblack_server_token"),
+                           ssl_verify=g_config.getboolean("carbonblack_server_sslverify"))
         binary_query = cb.select(Binary).where(f"md5:{md5}")
         if binary_query:
             try:
@@ -135,6 +139,7 @@ class BinaryDetonation(Integration):
                 binary_db_entry.binary_not_available = True
                 binary_db_entry.server_added_timestamp = binary_query[0].server_added_timestamp
                 binary_db_entry.save()
+                g_statistics.binaries_not_local += 1
                 return
 
             self.binary_queue.put(binary_query[0], block=True, timeout=None)
@@ -145,10 +150,6 @@ class BinaryDetonation(Integration):
         """
         while True:
             try:
-                #
-                # First touch all binaries to trigger alliance download
-                #
-
                 #
                 # Should we attempt to get binaries that are downloadable?
                 # Configurable date for binaries?
@@ -166,8 +167,9 @@ class BinaryDetonation(Integration):
                 #
                 for detonation in self.get_possible_alliance_binary():
                     self.download_binary_insert_queue(detonation)
-            except:
+            except Exception as e:
                 logger.error(traceback.format_exc())
+                report_error_statistics(str(e))
 
             time.sleep(.1)
 
@@ -191,7 +193,7 @@ class BinaryDetonation(Integration):
             self.reports.append(CbReport(**fields))
             self.feed = CbFeed(self.feedinfo, self.reports)
 
-        with open(os.path.join(cbint.globals.g_volume_directory, self.name, "feed", "feed.json"), 'w') as fp:
+        with open(os.path.join(g_volume_directory, self.name, "feed", "feed.json"), 'w') as fp:
             fp.write(self.feed.dump())
 
     def report_successful_detonation(self, result: AnalysisResult):

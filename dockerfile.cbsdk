@@ -16,3 +16,19 @@ COPY requirements.txt /requirements.txt
 #
 RUN pip install -r requirements.txt
 
+#
+# copy setup.py
+#
+COPY setup.py /
+
+#
+# Copy over cbint
+# Note this will be changed to pip install
+#
+COPY cbint /cbint
+
+#
+# run the install script for cbsdk
+#
+RUN python3 setup.py install
+
