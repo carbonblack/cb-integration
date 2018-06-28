@@ -1,7 +1,7 @@
 from celery import Celery
 import base64
 
-app = Celery('yara', backend='redis://localhost', broker='redis://localhost')
+app = Celery('yara', backend='redis://172.17.0.2', broker='redis://172.17.0.2')
 app.conf.task_serializer = "pickle"
 app.conf.result_serializer = "pickle"
 app.conf.accept_content = {"pickle"}

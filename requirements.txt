@@ -28,3 +28,5 @@ urllib3==1.22
 wcwidth==0.1.7
 Werkzeug==0.14.1
 yara-python==3.7.0
+celery
+redis

@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from cbint.globals import g_statistics
+import cbint.globals
 
 
 def validate_ip_address(addr: str):
@@ -21,5 +21,5 @@ def inside_docker():
         return False
 
 def report_error_statistics(msg):
-    g_statistics.last_error_message = msg
-    g_statistics.last_error_messaget = datetime.now()
+    cbint.globals.g_statistics.last_error_message = msg
+    cbint.globals.g_statistics.last_error_timestamp = datetime.now()
