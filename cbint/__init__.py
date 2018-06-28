@@ -1,5 +1,4 @@
 import logging
-logging.basicConfig()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -9,5 +8,3 @@ stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(log_formatter)
 
 logger.addHandler(logging.StreamHandler())
-
-

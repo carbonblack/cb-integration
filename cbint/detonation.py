@@ -13,7 +13,6 @@ from cbint.integration import Integration
 from cbint.binary_database import db
 from cbint.binary_database import BinaryDetonationResult
 from cbint.binary_collector import BinaryCollector
-from cbint.flask_feed import create_flask_app
 from cbapi.response.rest_api import CbResponseAPI
 from cbapi.response.models import Binary
 from cbapi.errors import *
@@ -21,6 +20,8 @@ from cbapi.errors import *
 from cbint.cbfeeds import CbReport, CbFeed
 
 from cbint.utils.helpers import report_error_statistics
+
+from cbint.flask_feed import app
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -40,7 +41,8 @@ class BinaryDetonation(Integration):
         logger.debug("Attempting to connect to sqlite database...")
         try:
             db.init(os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db"))
-            logger.debug("Binary Db Path: {0}".format(os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db")))
+            logger.debug("Binary Db Path: {0}".format(
+                os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db")))
             db.start()
             db.connect()
             db.create_tables([BinaryDetonationResult])
@@ -48,7 +50,6 @@ class BinaryDetonation(Integration):
         except Exception as e:
             logger.error(traceback.format_exc())
             report_error_statistics(str(e))
-
 
         time.sleep(1)
         logger.debug("Connected to sqlite database")
@@ -62,7 +63,7 @@ class BinaryDetonation(Integration):
         self.binary_collector = bc
         logger.debug("Binary Collector has started")
 
-        self.flask_feed = create_flask_app()
+        self.flask_feed = app
         self.flask_thread = threading.Thread(target=self.flask_feed.run,
                                              kwargs={"host": "127.0.0.1",
                                                      "port": cbint.globals.g_config.getint('listener_port', 8080),

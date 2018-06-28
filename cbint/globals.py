@@ -1,16 +1,19 @@
-import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Statistics(object):
-    number_binaries_scanned = 0
-    binaries_in_queue = 0
-    number_binaries_db = 0
-    last_error_message = None
-    last_error_timestamp = None
-    binaries_not_local = 0
+    def __init__(self):
+        self.number_binaries_scanned = 0
+        self.binaries_in_queue = 0
+        self.number_binaries_db = 0
+        self.last_error_message = None
+        self.last_error_timestamp = None
+        self.binaries_not_local = 0
 
-    def __str__(self):
-        return json.dumps([a for a in dir(self) if not a.startswith('__')])
+    def to_dict(self):
+        return {key: value for key, value in self.__dict__.items() if not key.startswith('__') and not callable(key)}
 
 
 g_config = None

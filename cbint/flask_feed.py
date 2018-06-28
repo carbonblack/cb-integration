@@ -1,30 +1,15 @@
 from flask import Flask
 
 import logging
-import os
+import cbint.globals
 
-from sqlite3 import dbapi2 as sqlite3
-from flask import Blueprint, request, session, g, redirect, url_for, abort, \
-    render_template, flash, current_app, send_from_directory
+from flask import jsonify
 
 logger = logging.getLogger(__name__)
 
+app = Flask('cbint')
+
+
+@app.route("/stats", methods=['GET'])
 def statistics():
-    pass
-
-
-def index():
-    logger.info(os.path.join(os.getcwd(), 'feed'))
-    return send_from_directory(os.path.join(os.getcwd(), 'feed'), 'feed.json')
-
-
-def create_flask_app():
-    app = Flask('cbint')
-    bp = Blueprint('response_feed', __name__)
-
-    bp.route('/')(index)
-    bp.route('/feed.json')(index)
-
-    app.register_blueprint(bp)
-
-    return app
+    return jsonify(cbint.globals.g_statistics.to_dict())
