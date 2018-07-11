@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
+import os
 
 setup(
     name='cbint',
     version='2.0.0',
     description='Carbon Black Developer Network Integration Framework',
-    # long_description=,
     url='https://github.com/carbonblack/cbsdk',
     author='Carbon Black Developer Network',
     author_email='dev-support@carbonblack.com',
@@ -17,7 +17,7 @@ setup(
     ],
 
     keywords='carbonblack bit9 response defense',
-    packages=find_packages(exclude=('samples','tests', 'docs')),
+    packages=find_packages(exclude=('samples', 'tests', 'docs')),
     install_requires=[
         'cbapi',
         'peewee',
@@ -33,9 +33,14 @@ setup(
         'protobuf',
         'yara-python',
         'grpcio',
-        'flask'
+        'flask',
+        'celery',
+        'redis'
     ],
     project_urls={
         'Bug Reports': 'https://github.com/carbonblack/cb-integration/issues',
     },
+    data_files=[('cbint/static', [os.path.join('cbint', 'static', f) for f in files])
+                for root, dirs, files in os.walk('cbint/static')]
+
 )

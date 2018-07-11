@@ -1,7 +1,6 @@
 from celery import Celery
-import base64
 
-app = Celery('yara', backend='redis://172.17.0.2', broker='redis://172.17.0.2')
+app = Celery('yara', backend='redis://localhost', broker='redis://localhost')
 app.conf.task_serializer = "pickle"
 app.conf.result_serializer = "pickle"
 app.conf.accept_content = {"pickle"}
@@ -16,6 +15,7 @@ from cbint.analysis import AnalysisResult
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
 
 def compile_rules(pathname):
     rule_map = {}
@@ -32,7 +32,9 @@ def compile_rules(pathname):
         rule_map[namespace] = fullpath
     return yara.compile(filepaths=rule_map)
 
+
 yara_rules = compile_rules(os.path.join(os.getcwd(), '../../vol/yara/yara_rules'))
+
 
 @app.task
 def analyze_binary(md5sum, binary_data):

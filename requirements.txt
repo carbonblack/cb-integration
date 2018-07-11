@@ -30,3 +30,4 @@ Werkzeug==0.14.1
 yara-python==3.7.0
 celery
 redis
+flask-cors
