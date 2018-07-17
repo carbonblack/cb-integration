@@ -140,17 +140,24 @@ class BinaryDetonation(Integration):
             except ObjectNotFoundError:
                 binary_db_entry.binary_not_available = True
                 binary_db_entry.server_added_timestamp = binary_query[0].server_added_timestamp
+                binary_db_entry.num_attempts += 1
+                binary_db_entry.last_scan_attempt = datetime.now()
                 binary_db_entry.save()
                 cbint.globals.g_statistics.binaries_not_local += 1
                 return
 
             self.binary_queue.put(binary_query[0], block=True, timeout=None)
 
+    def update_global_statistics(self):
+        cbint.globals.g_statistics.number_binaries_db = len(BinaryDetonationResult.select())
+        cbint.globals.g_statistics.binaries_in_queue = self.binary_queue.qsize()
+
     def insert_binaries_from_db(self):
         """
         :return:
         """
         while True:
+            self.update_global_statistics()
             try:
                 #
                 # Should we attempt to get binaries that are downloadable?
@@ -163,12 +170,14 @@ class BinaryDetonation(Integration):
                         .order_by(BinaryDetonationResult.server_added_timestamp.desc()) \
                         .limit(100):
                     self.download_binary_insert_queue(detonation)
+                    self.update_global_statistics()
 
                 #
                 # Next attempt to rescan binaries that needed to be downloaded by alliance
                 #
                 for detonation in self.get_possible_alliance_binary():
                     self.download_binary_insert_queue(detonation)
+                    self.update_global_statistics()
             except Exception as e:
                 logger.error(traceback.format_exc())
                 report_error_statistics(str(e))
@@ -206,6 +215,8 @@ class BinaryDetonation(Integration):
         bdr.binary_not_available = False
         bdr.scan_count += 1
         bdr.save()
+
+        cbint.globals.g_statistics.number_binaries_scanned += 1
 
         logger.info(f'{result.md5} scored at {result.score}')
 

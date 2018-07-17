@@ -22,4 +22,4 @@ def inside_docker():
 
 def report_error_statistics(msg):
     cbint.globals.g_statistics.last_error_message = msg
-    cbint.globals.g_statistics.last_error_timestamp = datetime.now()
+    cbint.globals.g_statistics.last_error_timestamp = str(datetime.now())

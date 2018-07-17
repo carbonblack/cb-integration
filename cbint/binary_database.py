@@ -39,6 +39,8 @@ class BinaryDetonationResult(Model):
     #
     last_scan_attempt = DateTimeField(null=True)
 
+    num_attempts = IntegerField(default=0)
+
     #
     # copied from Cb Response Server
     #
