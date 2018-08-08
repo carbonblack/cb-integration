@@ -1,27 +1,25 @@
-import logging
-import time
-import threading
-import traceback
 import base64
-import cbint.globals
+import logging
 import os
 import queue
+import threading
+import time
+import traceback
 from datetime import datetime, timedelta
 
-from cbint.analysis import AnalysisResult
-from cbint.integration import Integration
-from cbint.binary_database import db
-from cbint.binary_database import BinaryDetonationResult
-from cbint.binary_collector import BinaryCollector
-from cbapi.response.rest_api import CbResponseAPI
-from cbapi.response.models import Binary
 from cbapi.errors import *
+from cbapi.response.models import Binary
+from cbapi.response.rest_api import CbResponseAPI
 
+import cbint.globals
+from cbint.analysis import AnalysisResult
+from cbint.binary_collector import BinaryCollector
+from cbint.binary_database import BinaryDetonationResult
+from cbint.binary_database import db
 from cbint.cbfeeds import CbReport, CbFeed
-
-from cbint.utils.helpers import report_error_statistics
-
 from cbint.flask_feed import app
+from cbint.integration import Integration
+from cbint.utils.helpers import report_error_statistics
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

@@ -2,9 +2,9 @@ import configparser
 import logging
 import os
 import sys
+from logging.handlers import RotatingFileHandler
 
 import cbint.globals
-from logging.handlers import RotatingFileHandler
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

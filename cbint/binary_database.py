@@ -1,6 +1,7 @@
+import logging
+
 from peewee import *
 from playhouse.sqliteq import SqliteQueueDatabase
-import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

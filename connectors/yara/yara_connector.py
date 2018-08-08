@@ -1,11 +1,12 @@
-import yara
-import time
+import datetime
 import logging
 import os
+import time
 import traceback
-import datetime
-from cbint.detonation import BinaryDetonation
+import yara
+
 from cbint.analysis import AnalysisResult
+from cbint.detonation import BinaryDetonation
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

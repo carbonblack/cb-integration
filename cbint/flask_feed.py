@@ -1,11 +1,10 @@
-from flask import Flask
-
 import logging
-import cbint.globals
+import os
 
+from flask import Flask
 from flask import jsonify, make_response
 
-import os
+import cbint.globals
 
 logger = logging.getLogger(__name__)
 

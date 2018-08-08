@@ -1,14 +1,15 @@
+import datetime
+import logging
 import threading
 import time
-import logging
 import traceback
-import datetime
 from datetime import datetime
-from dateutil import parser
-import cbint.globals
 
-from cbapi.response.rest_api import CbResponseAPI
 from cbapi.response.models import Binary
+from cbapi.response.rest_api import CbResponseAPI
+from dateutil import parser
+
+import cbint.globals
 from cbint.binary_database import BinaryDetonationResult
 
 logger = logging.getLogger(__name__)

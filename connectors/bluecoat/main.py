@@ -46,14 +46,14 @@ def queue_binaries():
 
 def main():
     global bd
-    bd = BinaryDetonation(name="yara")
+    bd = BinaryDetonation(name="bluecoat")
 
-    bd.set_feed_info(name="Yara",
-                     summary="Scan binaries collected by Carbon Black with Yara.",
+    bd.set_feed_info(name="bluecoat",
+                     summary="Scan binaries collected by Carbon Black with bluecoat.",
                      tech_data="There are no requirements to share any data with Carbon Black to use this feed.",
-                     provider_url="http://plusvic.github.io/yara/",
-                     icon_path="icon/yara-logo.png",
-                     display_name="Yara")
+                     provider_url="http://plusvic.github.io/bluecoat/",
+                     icon_path="icon/bluecoat-logo.png",
+                     display_name="bluecoat")
 
     queue_binaries_to_scan_thread = threading.Thread(target=queue_binaries)
     queue_binaries_to_scan_thread.daemon = True

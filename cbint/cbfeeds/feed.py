@@ -1,12 +1,12 @@
-import os
-import json
 import base64
+import json
+import os
 import re
 import time
 
-from cbint.cbfeeds import CbInvalidReport
 from cbint.cbfeeds import CbIconError
 from cbint.cbfeeds import CbInvalidFeed
+from cbint.cbfeeds import CbInvalidReport
 
 
 class CbJSONEncoder(json.JSONEncoder):

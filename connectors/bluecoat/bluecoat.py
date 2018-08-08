@@ -1,11 +1,10 @@
-from cbint.utils.detonation import DetonationDaemon, ConfigurationError
-from cbint.utils.detonation.binary_analysis import (BinaryAnalysisProvider, AnalysisPermanentError,
-                                                    AnalysisTemporaryError, AnalysisResult)
-import cbint.utils.feed
 import logging
-import requests
 import traceback
 from time import sleep
+
+import cbint.utils.feed
+from cbint.utils.detonation import DetonationDaemon
+from cbint.utils.detonation.binary_analysis import (BinaryAnalysisProvider, AnalysisTemporaryError, AnalysisResult)
 from cbint.utils.tls import get_tlsv1_2_session
 
 logging.getLogger("requests").setLevel(logging.WARNING)
