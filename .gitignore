@@ -45,3 +45,5 @@ nosetests.xml
 *.pyc
 .DS_Store
 
+/.pytest_cache
+/ui/node_modules

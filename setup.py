@@ -1,26 +1,47 @@
-#!/usr/bin/env python
+import os
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='cbint',
-    version='0.9.2',
-    url='https://developer.carbonblack.com/',
-    license='MIT',
-    author='Carbon Black',
+    version='2.0.0',
+    description='Carbon Black Developer Network Integration Framework',
+    url='https://github.com/carbonblack/cbsdk',
+    author='Carbon Black Developer Network',
     author_email='dev-support@carbonblack.com',
-    description='Carbon Black Integration Library',
-    long_description=__doc__,
-    packages=['cbint', 'cbint.utils', 'cbint.utils.detonation'],
-    package_data={'cbint': ['utils/templates/*'], 'cbint.utils.detonation': ['templates/*']},
-    package_dir = {'': 'src'},
-    platforms='any',
     classifiers=[
-        'Environment :: Web Environment',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
-        'Operating System :: OS Independent',
-        'Programming Language :: Python',
-        'Topic :: Software Development :: Libraries :: Python Modules'
+        'Topic :: Software Development :: Build Tools',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3.6',
     ],
-    install_requires=['flask', 'python-dateutil', 'netifaces', 'cbapi>=1.3.4', 'cbfeeds==0.8.0', 'requests']
+
+    keywords='carbonblack bit9 response defense',
+    packages=find_packages(exclude=('samples', 'tests', 'docs')),
+    install_requires=[
+        'cbapi',
+        'peewee',
+        'requests',
+        'requests[security]',
+        'attrdict',
+        'cachetools',
+        'pyyaml',
+        'pika',
+        'prompt_toolkit',
+        'pygments',
+        'python-dateutil',
+        'protobuf',
+        'yara-python',
+        'grpcio',
+        'flask',
+        'celery',
+        'redis'
+    ],
+    project_urls={
+        'Bug Reports': 'https://github.com/carbonblack/cb-integration/issues',
+    },
+    data_files=[('cbint/static', [os.path.join('cbint', 'static', f) for f in files])
+                for root, dirs, files in os.walk('cbint/static')]
+
 )
