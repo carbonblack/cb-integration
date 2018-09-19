@@ -40,10 +40,10 @@ EXPOSE 80 9001
 #
 #RUN python3 -c "import cbint"
 
-RUN useradd -d /home/yara -ms /bin/bash yara
+#RUN useradd -d /home/yara -ms /bin/bash yara
 
-RUN chown -R yara /vol /connectors /cbint /var/log/
-RUN chgrp -R yara /vol /connectors /cbint /var/log/
+#RUN chown -R yara /vol /connectors /cbint /var/log/
+#RUN chgrp -R yara /vol /connectors /cbint /var/log/
 #
 # Start supervisord
 #

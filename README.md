@@ -49,7 +49,7 @@ Starting out you do all this
 
 
 	docker build -t cbsdk -f dockerfile.cbsdk .
-	docker build -t cb-yara-container dockerfile.yara .
+	docker build -t cb-yara-container -f dockerfile.yara .
 	docker run -d --name cb-yara-instance --mount type=bind,source="$(pwd)"/vol,target=/vol -p 5000:80 -p 9001:9001 cb-yara-container
 	docker exec -it /bin/bash cb-yara-instance
 	docker rm cb-yara-instance

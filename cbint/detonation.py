@@ -20,6 +20,7 @@ from cbint.cbfeeds import CbReport, CbFeed
 from cbint.flask_feed import app
 from cbint.integration import Integration
 from cbint.utils.helpers import report_error_statistics
+from cbint.message_bus import CBAsyncConsumer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -30,7 +31,7 @@ BINARY_QUEUE_MAX_SIZE = 100
 class BinaryDetonation(Integration):
     def __init__(self, name=""):
         super().__init__(name=name)
-        self.binary_queue = queue.Queue(maxsize=BINARY_QUEUE_MAX_SIZE)
+        self.binary_queue = queue.PriorityQueue(maxsize=BINARY_QUEUE_MAX_SIZE)
 
         #
         # Connect to the sqlite db and make sure the tables are created
@@ -74,6 +75,32 @@ class BinaryDetonation(Integration):
         self.db_inserter_thread = threading.Thread(target=self.insert_binaries_from_db)
         self.db_inserter_thread.daemon = True
         self.db_inserter_thread.start()
+
+        amqp_url = cbint.globals.g_config.get("amqp_url")
+
+        def submit_binary_to_db_and_queue(message):
+            try:
+                det = BinaryDetonationResult()
+                det.md5 = message.get("md5")
+
+                #
+                # Save into database
+                #
+                det.save()
+                self.download_binary_insert_queue(det,1)
+            except Exception as e:
+                logger.Debug(e)
+
+        self.cbasyncconsumer = CBAsyncConsumer(amqp_url=amqp_url,
+                                  exchange='api.events',
+                                  queue='binarystore',
+                                  routing_key='binarystore.#',
+                                  exchange_type='topic',
+                                  exchange_durable=True,
+                                  arguments={'x-max-length': 10000},
+                                  worker=submit_binary_to_db_and_queue
+                                  )
+        self.cbasyncconsumer.run()
 
         logger.debug("init complete")
 
@@ -126,7 +153,7 @@ class BinaryDetonation(Integration):
             for result in results:
                 yield result
 
-    def download_binary_insert_queue(self, binary_db_entry):
+    def download_binary_insert_queue(self, binary_db_entry,priority=2):
         md5 = binary_db_entry.md5
         cb = CbResponseAPI(url=cbint.globals.g_config.get("carbonblack_server_url"),
                            token=cbint.globals.g_config.get("carbonblack_server_token"),
@@ -144,7 +171,7 @@ class BinaryDetonation(Integration):
                 cbint.globals.g_statistics.binaries_not_local += 1
                 return
 
-            self.binary_queue.put(binary_query[0], block=True, timeout=None)
+            self.binary_queue.put((priority,binary_query[0]), block=True, timeout=None)
 
     def update_global_statistics(self):
         cbint.globals.g_statistics.number_binaries_db = len(BinaryDetonationResult.select())
