@@ -171,7 +171,7 @@ class BinaryDetonation(Integration):
                 cbint.globals.g_statistics.binaries_not_local += 1
                 return
 
-            self.binary_queue.put((binary_query[0],priority), block=True, timeout=None)
+            self.binary_queue.put((priority,binary_query[0]), block=True, timeout=None)
 
     def update_global_statistics(self):
         cbint.globals.g_statistics.number_binaries_db = len(BinaryDetonationResult.select())
