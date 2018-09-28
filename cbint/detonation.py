@@ -79,6 +79,7 @@ class BinaryDetonation(Integration):
         amqp_url = cbint.globals.g_config.get("amqp_url")
 
         def submit_binary_to_db_and_queue(message):
+            logger.Debug("Submitting binary to db and queue")
             try:
                 det = BinaryDetonationResult()
                 det.md5 = message.get("md5")
@@ -89,12 +90,13 @@ class BinaryDetonation(Integration):
                 det.save()
                 self.download_binary_insert_queue(det,1)
             except Exception as e:
+                logger.Debug("Exception in async consumer....")
                 logger.Debug(e)
 
         self.cbasyncconsumer = CBAsyncConsumer(amqp_url=amqp_url,
                                   exchange='api.events',
                                   queue='binarystore',
-                                  routing_key='binarystore.#',
+                                  routing_key='binarystore.file.added',
                                   exchange_type='topic',
                                   exchange_durable=True,
                                   arguments={'x-max-length': 10000},
