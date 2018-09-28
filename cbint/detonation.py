@@ -102,7 +102,11 @@ class BinaryDetonation(Integration):
                                   arguments={'x-max-length': 10000},
                                   worker=submit_binary_to_db_and_queue
                                   )
-        self.cbasyncconsumer.run()
+        logger.debug("Starting async consumer")
+        self.asyncconsumer_thread = threading.Thread(target=self.cbasyncconsumer.run)
+        self.asyncconsumer_thread.daemon = True
+        self.asyncconsumer_thread.start()
+        logger.debug("Async consumer running")
 
         logger.debug("init complete")
 
