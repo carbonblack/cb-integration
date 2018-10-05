@@ -50,3 +50,7 @@ carbonblack_server_token={{cbtoken}}
 ; Carbon Black Enterprise Server SSL Verfication
 ;
 carbonblack_server_sslverify=0
+
+;
+; Add any configuration options here
+;
