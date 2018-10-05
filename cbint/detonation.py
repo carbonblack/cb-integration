@@ -93,20 +93,20 @@ class BinaryDetonation(Integration):
                 logger.debug("Exception in async consumer....")
                 logger.debug(e)
 
-        self.cbasyncconsumer = CBAsyncConsumer(amqp_url=amqp_url,
-                                  exchange='api.events',
-                                  queue='binarystore',
-                                  routing_key='binarystore.file.added',
-                                  exchange_type='topic',
-                                  exchange_durable=True,
-                                  arguments={'x-max-length': 10000},
-                                  worker=submit_binary_to_db_and_queue
-                                  )
-        logger.debug("Starting async consumer")
-        self.asyncconsumer_thread = threading.Thread(target=self.cbasyncconsumer.run)
-        self.asyncconsumer_thread.daemon = True
-        self.asyncconsumer_thread.start()
-        logger.debug("Async consumer running")
+        # self.cbasyncconsumer = CBAsyncConsumer(amqp_url=amqp_url,
+        #                           exchange='api.events',
+        #                           queue='binarystore',
+        #                           routing_key='binarystore.file.added',
+        #                           exchange_type='topic',
+        #                           exchange_durable=True,
+        #                           arguments={'x-max-length': 10000},
+        #                           worker=submit_binary_to_db_and_queue
+        #                           )
+        # logger.debug("Starting async consumer")
+        # self.asyncconsumer_thread = threading.Thread(target=self.cbasyncconsumer.run)
+        # self.asyncconsumer_thread.daemon = True
+        # self.asyncconsumer_thread.start()
+        # logger.debug("Async consumer running")
 
         logger.debug("init complete")
 
@@ -142,7 +142,7 @@ class BinaryDetonation(Integration):
             self.binary_queue.task_done()
             if not binary:
                 continue
-            yield binary
+            yield binary[2]
 
     def get_possible_alliance_binary(self):
         while True:
@@ -266,3 +266,5 @@ class BinaryDetonation(Integration):
         bdr.save()
 
         logger.info(f'{result.md5} failed detonation')
+
+

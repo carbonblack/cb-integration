@@ -75,11 +75,14 @@ class Integration(object):
             #
             cbint.globals.g_base_directory = os.path.join(os.path.dirname(__file__), "..")
             cbint.globals.g_volume_directory = os.path.join(os.path.dirname(__file__), "../vol")
-        logger.debug(f'base directory: {cbint.globals.g_base_directory}')
-        logger.debug(f'volume directory: {cbint.globals.g_volume_directory}')
+        # logger.debug(f'base directory: {cbint.globals.g_base_directory}')
+        # logger.debug(f'volume directory: {cbint.globals.g_volume_directory}')
 
     def get_volume_directory(self):
         return cbint.globals.g_volume_directory
 
     def get_base_directory(self):
         return cbint.globals.g_base_directory
+
+    def get_config(self):
+        return cbint.globals.g_config

@@ -8,8 +8,6 @@ import cbint.globals
 
 logger = logging.getLogger(__name__)
 
-logger.info(os.path.join(os.path.dirname(os.path.realpath(__file__)), "static"))
-
 app = Flask('cbint', static_folder=os.path.join(os.path.dirname(os.path.realpath(__file__)), "static"))
 
 
