@@ -11,7 +11,15 @@ supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
 [program:nginx]
 command=/usr/sbin/nginx -g "daemon off;" -c /vol/nginx/nginx.conf
 username=www-data
+autostart=true
 autorestart=true
+
+[program:redis]
+command=/usr/bin/redis-server
+user=root
+autostart=true
+autorestart=true
+
 
 [program:yara]
 directory=/connectors/yara

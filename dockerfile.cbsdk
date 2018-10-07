@@ -32,13 +32,3 @@ COPY setup.py /
 #
 RUN python3 setup.py install
 
-#
-# copy over the connectors/samples
-#
-COPY connectors /connectors
-
-#
-# copy over conf files
-#
-COPY vol /vol
-

@@ -38,12 +38,12 @@ EXPOSE 80 9001
 #
 # Quick test to make sure we can import cbsdk
 #
-#RUN python3 -c "import cbint"
+RUN python3 -c "import cbint"
 
-#RUN useradd -d /home/yara -ms /bin/bash yara
+RUN useradd -d /home/yara -ms /bin/bash yara
 
-#RUN chown -R yara /vol /connectors /cbint /var/log/
-#RUN chgrp -R yara /vol /connectors /cbint /var/log/
+RUN chown -R yara /vol /connectors /cbint /var/log/
+RUN chgrp -R yara /vol /connectors /cbint /var/log/
 #
 # Start supervisord
 #
