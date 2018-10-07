@@ -33,7 +33,7 @@ def analyze_binary(md5sum, binary_file_stream):
         #
         # Set the default score of the binary
         #
-        score = 0
+        score = 1
 
         #
         # Read the binary
