@@ -87,7 +87,7 @@ def main():
             if analysis_result:
                 bd.report_failure_detonation(analysis_result)
             logger.error(traceback.format_exc())
-        time.sleep(.1)
+        time.sleep(3)
 
 
 if __name__ == '__main__':

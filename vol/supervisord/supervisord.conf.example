@@ -15,7 +15,7 @@ autorestart=true
 
 [program:example]
 directory=/connectors/example
-command=python3 boilerplate_connector.py
+command=python3 example_connector.py
 user=root
 autostart=true
 autorestart=true
