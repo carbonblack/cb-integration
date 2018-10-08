@@ -68,7 +68,7 @@ def analyze_binary(md5sum, binary_file_stream):
             # logger.info(res.json())
 
             if 'result' in res.json():
-                score = int(res.json().get('result'))
+                score = int(res.json().get('result')) * 10
                 logger.info('got score:{}'.format(score))
                 break
             elif 'error' in res.json():
