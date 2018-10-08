@@ -41,3 +41,8 @@ RUN mkdir /vol
 #
 RUN python3 setup.py install
 
+#
+# Start supervisord
+#
+CMD ["/usr/bin/supervisord", "-c", "/vol/supervisord/supervisord.conf"]
+
