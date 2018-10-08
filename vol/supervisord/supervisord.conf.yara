@@ -20,7 +20,6 @@ user=root
 autostart=true
 autorestart=true
 
-
 [program:yara]
 directory=/connectors/yara
 command=python3 main.py
