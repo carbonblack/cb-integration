@@ -26,6 +26,10 @@
 	
 3. Modify the local file `./yara-vol/yara/yara.conf.template` and place in `./yara-vol/yara/yara.conf`
 
+    ```
+    cp ./yara-vol/yara/yara.conf.template ./yara-vol/yara/yara.conf
+	```
+
 	Ensure the Cb Response Server URL and API Key are correct.
 
 4. Run the container with `yara-vol` directory bind mounted to `/vol` from within the container.
