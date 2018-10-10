@@ -12,7 +12,7 @@ http {
 		gzip_types       text/plain text/css application/javascript application/json image/*;
 
 		location /feed.json {
-			alias /vol/example/feed/feed.json;
+			alias /vol/yara/feed/feed.json;
 		}
 
 		location = /supervisor {

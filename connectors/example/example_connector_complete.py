@@ -43,7 +43,41 @@ def analyze_binary(md5sum, binary_file_stream):
         #
         # do your work here
         #
+        awful_url = bd.get_config().get('awful_analyzer_url', '')
 
+        res = requests.post(url='{0}/upload_sample'.format(awful_url),
+                            files=dict(sample=str(binary_data)))
+
+        job_id = None
+        if 'job_id' in res.json():
+            job_id = res.json().get('job_id', '')
+            logger.info('got job_id:{}'.format(job_id))
+
+        if not job_id:
+            #
+            # Error
+            #
+            analysis_result.last_error_msg = ''
+            if 'error' in res.json():
+                analysis_result.last_error_msg = res.json().get('error', '')
+            return analysis_result
+
+        for i in range(300):
+
+            res = requests.get(url='{0}/get_result/{1}'.format(awful_url, job_id))
+            # logger.info(res.json())
+
+            if 'result' in res.json():
+                score = int(res.json().get('result')) * 10
+                logger.info('got score:{}'.format(score))
+                break
+            elif 'error' in res.json():
+                if res.json().get('error', '') == "pending":
+                    pass
+                else:
+                    analysis_result.last_error_msg = res.json().get('error', '')
+
+            time.sleep(3)
 
     except Exception as e:
         #

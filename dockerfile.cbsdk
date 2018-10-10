@@ -1,18 +1,17 @@
 FROM python:3.6
+
 #
 # Update the virtual machine
 #
 RUN apt-get update && apt-get install -y nginx supervisor vim net-tools less redis-server
 
-###### This part below can be removed once we get this more stable
-###### This is just to save time
 #
-#
+# Copy requirements.txt
 #
 COPY requirements.txt /requirements.txt
 
 #
-#
+# Install all requirements for cbint
 #
 RUN pip install -r requirements.txt
 
@@ -28,17 +27,22 @@ COPY cbint /cbint
 COPY setup.py /
 
 #
+# Create a directory for connector source code
+#
+RUN mkdir /connectors
+
+#
+# Create volume directory
+#
+RUN mkdir /vol
+
+#
 # run the install script for cbsdk
 #
 RUN python3 setup.py install
 
 #
-# copy over the connectors/samples
+# Start supervisord
 #
-COPY connectors /connectors
-
-#
-# copy over conf files
-#
-COPY vol /vol
+CMD ["/usr/bin/supervisord", "-c", "/vol/supervisord/supervisord.conf"]
 
