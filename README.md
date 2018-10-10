@@ -72,8 +72,6 @@
 5. Modify the local file ./vol/example/example.conf.  This serves as a configuration file for our connector.
 
 	NOTE: Ensure the Cb Response Server URL and API Key are correct.
-	Add awful_analyzer_url=http://<ip>:<port> to bottom of example.conf
-
 
 6. Run the container with example-vol directory bind mounted to /vol from within the container.
 
