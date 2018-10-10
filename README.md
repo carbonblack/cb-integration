@@ -46,8 +46,63 @@
 	
 6. The yara container listens on port 5000.  This can be changed by the docker run command above.  
    To view the feed use `curl localhost:5000/feed.json`.
+   
+   
+## CbSDK Integration Example
 
-## Developer Steps
+1. Install Docker CE.  All CbSDK examples and connectors are now run inside a docker container.
+
+	https://docs.docker.com/install/
+
+2. Download the latest cbsdk docker image.  We will use this image to get the example connector up and running.
+	```		
+	docker pull cbdevnetwork/cbsdk:latest
+	```
+
+3. Use git to clone the cb-integration code.  This git repository contains the example connector code and configuration files needed to get our example working.
+	```
+	git clone https://github.com/carbonblack/cb-integration
+	cd cb-integration
+	git checkout cbconnect
+	```
+4. Lets make a copy of the ./vol directory for our work
+	```
+	cp -r ./vol ./example-vol
+	```
+5. Modify the local file ./vol/example/example.conf.  This serves as a configuration file for our connector.
+
+	NOTE: Ensure the Cb Response Server URL and API Key are correct.
+	Add awful_analyzer_url=http://<ip>:<port> to bottom of example.conf
+
+
+6. Run the container with example-vol directory bind mounted to /vol from within the container.
+
+	Interactive run with delete on exit:
+	```
+	docker run -it --rm --name cbsdk --mount type=bind,source="$(pwd)"/example-vol,target=/vol --mount type=bind,source="$(pwd)"/connectors,target=/connectors -p 5001:80 -p 9001:9001 cbdevnetwork/cbsdk:latest
+	```
+	Run in detached mode:
+	```
+	docker run -d --name cbsdk --mount type=bind,source="$(pwd)"/example-vol,target=/vol --mount type=bind,source="$(pwd)"/connectors,target=/connectors -p 5001:80 -p 9001:9001 cbdevnetwork/cbsdk:latest
+	```
+	NOTE: Make sure you are in cb-integration directory
+
+7. View ./example-vol/example.log for debugging information
+	```
+	less ./example-vol/example.log
+	```
+
+8. The example container listens on port 5001.  This can be changed by the docker run command above. 
+
+	To view the feed use:
+	```
+	curl localhost:5001/feed.json
+	```
+
+	NOTE: The boilerplate example code will score all binaries with score of 1
+	
+
+## Developer Steps/Notes
 
 Starting out you do all this
 
