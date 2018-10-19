@@ -39,10 +39,10 @@ class BinaryDetonation(Integration):
 
         logger.debug("Attempting to connect to sqlite database...")
         try:
-            db.init(os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db"))
+            #db.init(os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db"))
             logger.debug("Binary Db Path: {0}".format(
                 os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db")))
-            db.start()
+            #db.start()
             db.connect()
             db.create_tables([BinaryDetonationResult])
             self.db_object = db
@@ -57,7 +57,7 @@ class BinaryDetonation(Integration):
         # Create a Binary Collector and start it
         #
         logger.debug("Starting binary collector...")
-        bc = BinaryCollector(query=cbint.globals.g_config.get("binary_filter_query"))
+        bc = BinaryCollector(query=cbint.globals.g_config.get("binary_filter_query"), queue=self.binary_queue)
         bc.start()
         self.binary_collector = bc
         logger.debug("Binary Collector has started")
@@ -168,7 +168,7 @@ class BinaryDetonation(Integration):
         if binary_query:
             try:
                 binary_query[0].file.read()
-            except ObjectNotFoundError:
+            except Exception as e:
                 binary_db_entry.binary_not_available = True
                 binary_db_entry.server_added_timestamp = binary_query[0].server_added_timestamp
                 binary_db_entry.num_attempts += 1
@@ -194,20 +194,26 @@ class BinaryDetonation(Integration):
                 # Should we attempt to get binaries that are downloadable?
                 # Configurable date for binaries?
                 #
+                logger.info("start normal")
                 for detonation in BinaryDetonationResult.select() \
                         .where(BinaryDetonationResult.binary_not_available.is_null()) \
                         .where(BinaryDetonationResult.last_scan_date.is_null() or \
                                BinaryDetonationResult.last_scan_date < datetime.today() - timedelta(days=180)) \
                         .order_by(BinaryDetonationResult.server_added_timestamp.desc()) \
                         .limit(100):
+                    logger.info("start normal1")
                     self.download_binary_insert_queue(detonation)
+                    logger.info("start normal2")
                     self.update_global_statistics()
 
                 #
                 # Next attempt to rescan binaries that needed to be downloaded by alliance
                 #
+                logger.info("start alliance")
                 for detonation in self.get_possible_alliance_binary():
+                    logger.info("start alliance1")
                     self.download_binary_insert_queue(detonation)
+                    logger.info("start alliance3")
                     self.update_global_statistics()
             except Exception as e:
                 logger.error(traceback.format_exc())
