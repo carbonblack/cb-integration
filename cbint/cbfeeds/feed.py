@@ -3,10 +3,13 @@ import json
 import os
 import re
 import time
+import logging
 
 from cbint.cbfeeds import CbIconError
 from cbint.cbfeeds import CbInvalidFeed
 from cbint.cbfeeds import CbInvalidReport
+
+logger = logging.getLogger(__name__)
 
 
 class CbJSONEncoder(json.JSONEncoder):
@@ -27,6 +30,7 @@ class CbFeed(object):
         '''
         if validate:
             self.validate()
+
         return json.dumps(self.data, cls=CbJSONEncoder, indent=2)
 
     def __repr__(self):

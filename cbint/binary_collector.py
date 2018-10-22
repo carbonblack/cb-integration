@@ -24,8 +24,9 @@ def convert_to_cb(dt):
 
 
 class BinaryCollector(threading.Thread):
-    def __init__(self, query, sleep_interval=.1):
+    def __init__(self, query, queue, sleep_interval=.1):
         threading.Thread.__init__(self)
+        self.binary_queue = queue
         self.query = query
         self.sleep_interval = sleep_interval
         self.total_results = 0
@@ -62,7 +63,8 @@ class BinaryCollector(threading.Thread):
 
                 query = self.query
                 if newest_binary_date:
-                    datetime_object = parser.parse(newest_binary_date)
+                    #datetime_object = parser.parse(newest_binary_date)
+                    datetime_object = newest_binary_date
                     query += " server_added_timestamp:[{0} TO *]".format(convert_to_cb(datetime_object))
 
                 self.cb = CbResponseAPI(url=cbint.globals.g_config.get("carbonblack_server_url"),
@@ -88,6 +90,14 @@ class BinaryCollector(threading.Thread):
                         det = BinaryDetonationResult()
                         det.md5 = binary.md5
                         det.server_added_timestamp = binary.server_added_timestamp
+
+                        logger.info(binary.md5)
+
+                        try:
+                            binary.file.read()
+                            self.binary_queue.put((3, time.time(), binary), block=False, timeout=None)
+                        except Exception as e:
+                            pass
 
                         #
                         # Save into database

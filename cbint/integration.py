@@ -40,8 +40,11 @@ class Integration(object):
         file_handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=5)
         file_handler.setFormatter(log_formatter)
 
-        logger = logging.getLogger("cbint")
+        logger = logging.getLogger()
         logger.addHandler(file_handler)
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(log_formatter)
+        logger.addHandler(stream_handler)
 
     def validate_general_config(self):
         cfg_parser = configparser.ConfigParser()
