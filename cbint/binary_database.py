@@ -16,7 +16,7 @@ db = PostgresqlDatabase('postgres', user='postgres', password='mysecretpassword'
 
 class BinaryDetonationResult(Model):
     md5 = CharField(index=True)
-    last_scan_date = DateTimeField(null=True)
+    last_scan_date = DateTimeField(index=True, null=True)
     last_success_msg = CharField(default='', null=True)
 
     last_error_msg = CharField(default='', null=True)
@@ -40,14 +40,27 @@ class BinaryDetonationResult(Model):
     #
     # Last attempt to scan this binary.  Which could have thrown an error if the binary was not available to download
     #
-    last_scan_attempt = DateTimeField(null=True)
+    last_scan_attempt = DateTimeField(index=True, null=True)
 
+    #
+    #
+    #
     num_attempts = IntegerField(default=0)
 
     #
     # copied from Cb Response Server
     #
     server_added_timestamp = DateTimeField()
+
+    #
+    # Setting this will force detonation library to rescan this binary
+    #
+    force_rescan = BooleanField(default=False)
+
+    #
+    # Misc use for connectors
+    #
+    misc = CharField(default='')
 
     class Meta:
         database = db

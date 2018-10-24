@@ -14,6 +14,7 @@ class Statistics(object):
         self.last_error_timestamp = None
         self.binaries_not_local = 0
         self.binaries_per_second = 0
+        self.bd = None
 
     def to_dict(self):
         self.binaries_per_second = self.number_binaries_scanned / (datetime.now() - self.started).total_seconds()
@@ -25,3 +26,4 @@ g_status = {}
 g_volume_directory = "/"  # /conf/yara
 g_base_directory = "/"  # /
 g_statistics = Statistics()
+g_integration = None

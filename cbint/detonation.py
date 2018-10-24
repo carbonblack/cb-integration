@@ -25,7 +25,7 @@ from cbint.message_bus import CBAsyncConsumer
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-BINARY_QUEUE_MAX_SIZE = 100
+BINARY_QUEUE_MAX_SIZE = 200
 
 
 class BinaryDetonation(Integration):
@@ -40,6 +40,7 @@ class BinaryDetonation(Integration):
         logger.debug("Attempting to connect to sqlite database...")
         try:
             #db.init(os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db"))
+            # db.init(os.path.join(cbint.globals.g_volume_directory, "binary.db"))
             logger.debug("Binary Db Path: {0}".format(
                 os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db")))
             #db.start()
@@ -88,7 +89,7 @@ class BinaryDetonation(Integration):
                 # Save into database
                 #
                 det.save()
-                self.download_binary_insert_queue(det,1)
+                self.download_binary_insert_queue(det, 1)
             except Exception as e:
                 logger.debug("Exception in async consumer....")
                 logger.debug(e)
@@ -107,6 +108,8 @@ class BinaryDetonation(Integration):
         # self.asyncconsumer_thread.daemon = True
         # self.asyncconsumer_thread.start()
         # logger.debug("Async consumer running")
+
+        cbint.globals.g_integration = self
 
         logger.debug("init complete")
 
@@ -136,7 +139,6 @@ class BinaryDetonation(Integration):
                          "display_name": display_name}
 
     def binaries_to_scan(self):
-
         while True:
             binary = self.binary_queue.get(block=True, timeout=None)
             self.binary_queue.task_done()
@@ -144,22 +146,7 @@ class BinaryDetonation(Integration):
                 continue
             yield binary[2]
 
-    def get_possible_alliance_binary(self):
-        while True:
-            #
-            # Get all binaries we have tried to scan, but could NOT download and we last tried 1 day ago
-            #
-            results = BinaryDetonationResult.select() \
-                .where(BinaryDetonationResult.binary_not_available == True) \
-                .where(BinaryDetonationResult.last_scan_attempt < datetime.today() - timedelta(days=1)) \
-                .order_by(BinaryDetonationResult.last_scan_attempt.asc()) \
-                .limit(100)
-            if not results:
-                return
-            for result in results:
-                yield result
-
-    def download_binary_insert_queue(self, binary_db_entry,priority=2):
+    def download_binary_insert_queue(self, binary_db_entry, priority=2):
         md5 = binary_db_entry.md5
         cb = CbResponseAPI(url=cbint.globals.g_config.get("carbonblack_server_url"),
                            token=cbint.globals.g_config.get("carbonblack_server_token"),
@@ -177,7 +164,7 @@ class BinaryDetonation(Integration):
                 cbint.globals.g_statistics.binaries_not_local += 1
                 return
 
-            self.binary_queue.put((priority,time.time(),binary_query[0]), block=True, timeout=None)
+            self.binary_queue.put((priority, time.time(), binary_query[0]), block=True, timeout=None)
 
     def update_global_statistics(self):
         cbint.globals.g_statistics.number_binaries_db = len(BinaryDetonationResult.select())
@@ -190,36 +177,41 @@ class BinaryDetonation(Integration):
         while True:
             self.update_global_statistics()
             try:
-                #
-                # Should we attempt to get binaries that are downloadable?
-                # Configurable date for binaries?
-                #
-                logger.info("start normal")
+                # logger.info("start normal")
                 for detonation in BinaryDetonationResult.select() \
-                        .where(BinaryDetonationResult.binary_not_available.is_null()) \
-                        .where(BinaryDetonationResult.last_scan_date.is_null() or \
-                               BinaryDetonationResult.last_scan_date < datetime.today() - timedelta(days=180)) \
+                        .where((BinaryDetonationResult.binary_not_available.is_null()) | \
+                               (BinaryDetonationResult.last_scan_date.is_null()) | \
+                               (BinaryDetonationResult.force_rescan == True)) \
                         .order_by(BinaryDetonationResult.server_added_timestamp.desc()) \
-                        .limit(100):
-                    logger.info("start normal1")
+                        .limit(500):
+                    # logger.info("start normal1")
                     self.download_binary_insert_queue(detonation)
-                    logger.info("start normal2")
+                    # logger.info("start normal2")
                     self.update_global_statistics()
 
                 #
                 # Next attempt to rescan binaries that needed to be downloaded by alliance
                 #
-                logger.info("start alliance")
-                for detonation in self.get_possible_alliance_binary():
-                    logger.info("start alliance1")
+                # logger.info("start alliance")
+                for detonation in BinaryDetonationResult.select() \
+                        .where((BinaryDetonationResult.binary_not_available == True) & \
+                               (BinaryDetonationResult.last_scan_attempt < datetime.today() - timedelta(days=1))) \
+                        .order_by(BinaryDetonationResult.last_scan_attempt.asc()) \
+                        .limit(100):
+                    # logger.info("start alliance1")
                     self.download_binary_insert_queue(detonation)
-                    logger.info("start alliance3")
+                    # logger.info("start alliance3")
                     self.update_global_statistics()
             except Exception as e:
                 logger.error(traceback.format_exc())
                 report_error_statistics(str(e))
 
             time.sleep(.1)
+
+    def force_rescan_all(self):
+        logger.info("force rescan on all present binaries")
+        query = BinaryDetonationResult.update(force_rescan=True).where(BinaryDetonationResult.scan_count > 0)
+        query.execute()
 
     def generate_feed_from_db(self):
         """
@@ -251,6 +243,9 @@ class BinaryDetonation(Integration):
         bdr.last_scan_date = bdr.last_scan_attempt = datetime.now()
         bdr.binary_not_available = False
         bdr.scan_count += 1
+        if bdr.force_rescan == True:
+            logger.info("rescan was True now set to False")
+            bdr.force_rescan = False
         bdr.save()
 
         cbint.globals.g_statistics.number_binaries_scanned += 1
@@ -269,8 +264,9 @@ class BinaryDetonation(Integration):
         bdr.last_error_msg = result.last_error_msg
         bdr.last_error_date = datetime.now()
         bdr.stop_future_scans = True
+        if bdr.force_rescan == True:
+            logger.info("rescan was True now set to False")
+            bdr.force_rescan = False
         bdr.save()
 
         logger.info(f'{result.md5} failed detonation')
-
-

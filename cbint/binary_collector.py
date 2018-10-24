@@ -13,6 +13,7 @@ import cbint.globals
 from cbint.binary_database import BinaryDetonationResult
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 cb_datetime_format = "%Y-%m-%dT%H:%M:%S"
 
@@ -61,6 +62,8 @@ class BinaryCollector(threading.Thread):
                 #
                 newest_binary_date = self.get_newest_binary_date()
 
+                #logger.info("binary_collector newest_binary_date: {0}".format(newest_binary_date))
+
                 query = self.query
                 if newest_binary_date:
                     #datetime_object = parser.parse(newest_binary_date)
@@ -75,7 +78,7 @@ class BinaryCollector(threading.Thread):
                 binary_query._batch_size = PAGE_SIZE
 
                 if len(binary_query) == 0:
-                    time.sleep(self.sleep_interval)
+                    time.sleep(30)
                     continue
 
                 for binary in binary_query[:PAGE_SIZE]:
@@ -84,6 +87,8 @@ class BinaryCollector(threading.Thread):
 
                     exist_query = BinaryDetonationResult.select().where(BinaryDetonationResult.md5 == binary.md5)
                     if exist_query.exists():
+                        #logger.info("binary already exists in database")
+                        time.sleep(self.sleep_interval)
                         continue
 
                     try:
@@ -91,7 +96,7 @@ class BinaryCollector(threading.Thread):
                         det.md5 = binary.md5
                         det.server_added_timestamp = binary.server_added_timestamp
 
-                        logger.info(binary.md5)
+                        #logger.info(binary.md5)
 
                         try:
                             binary.file.read()
@@ -118,6 +123,7 @@ class BinaryCollector(threading.Thread):
         while True:
             try:
                 self.collect_oldest_newest_binaries()
+                #self.collect_newest_oldest_binaries()
             except Exception as e:
                 logger.error(traceback.format_exc())
             time.sleep(self.sleep_interval)
