@@ -266,7 +266,6 @@ class BinaryDetonation(Integration):
     def report_binary_unavailable(self, result: AnalysisResult):
         bdr = BinaryDetonationResult.select(BinaryDetonationResult.md5 == result.md5)
         bdr.binary_not_available = True
-        bdr.server_added_timestamp = result.server_added_timestamp
         bdr.num_attempts += 1
         bdr.last_scan_attempt = datetime.now()
         bdr.save()
