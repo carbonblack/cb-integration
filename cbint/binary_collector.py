@@ -66,8 +66,8 @@ class BinaryCollector(threading.Thread):
 
                 query = self.query
                 if newest_binary_date:
-                    #datetime_object = parser.parse(newest_binary_date)
-                    datetime_object = newest_binary_date
+                    datetime_object = parser.parse(newest_binary_date)
+                    #datetime_object = newest_binary_date
                     query += " server_added_timestamp:[{0} TO *]".format(convert_to_cb(datetime_object))
 
                 self.cb = CbResponseAPI(url=cbint.globals.g_config.get("carbonblack_server_url"),

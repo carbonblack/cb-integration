@@ -9,6 +9,7 @@ import threading
 from celery import group
 from tasks import analyze_binary
 from cbint.analysis import AnalysisResult
+import cbint.globals
 
 from cbint.detonation import BinaryDetonation
 
@@ -49,7 +50,8 @@ class YaraObject(threading.Thread):
             scan_group = list()
             for i in range(MAX_SCANS):
                 binary = next(bd.binaries_to_scan())
-                scan_group.append(analyze_binary.s(self.yara_rule_map, binary.md5, binary.file.read()))
+                md5 = binary[2]
+                scan_group.append(analyze_binary.s(self.yara_rule_map, md5, cbint.globals.g_config))
             job = group(scan_group)
 
             result = job.apply_async()
@@ -62,6 +64,8 @@ class YaraObject(threading.Thread):
                     if analysis_result:
                         if analysis_result.last_error_msg:
                             bd.report_failure_detonation(analysis_result)
+                        elif analysis_result.binary_not_available:
+                            bd.report_binary_unavailable(analysis_result)
                         else:
                             analysis_result.misc = self.yara_rule_map
                             bd.report_successful_detonation(analysis_result)

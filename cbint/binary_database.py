@@ -9,9 +9,12 @@ logger.setLevel(logging.DEBUG)
 #
 # autostart must be False if we intend to dynamically create the database.
 #
-#db = SqliteQueueDatabase(None, autostart=False)
-db = PostgresqlDatabase('postgres', user='postgres', password='mysecretpassword',
-                        host='localhost', port=5432)
+db = SqliteQueueDatabase(None, autostart=False)
+# db = PostgresqlDatabase('postgres',
+#                         user='postgres',
+#                         password='mysecretpassword',
+#                         host='localhost',
+#                         port=5432)
 
 
 class BinaryDetonationResult(Model):

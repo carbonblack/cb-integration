@@ -12,7 +12,8 @@ class AnalysisResult(object):
                  last_scan_date=None,
                  last_error_msg='',
                  last_error_date=None,
-                 stop_future_scans=False):
+                 stop_future_scans=False,
+                 binary_not_available=False):
         self.md5 = md5
         self.short_result = short_result
         self.long_result = long_result
@@ -21,3 +22,4 @@ class AnalysisResult(object):
         self.last_scan_date = last_scan_date
         self.score = score
         self.stop_future_scans = stop_future_scans
+        self.binary_not_available = binary_not_available
