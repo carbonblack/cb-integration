@@ -264,7 +264,7 @@ class BinaryDetonation(Integration):
         logger.info(f'{result.md5} failed detonation')
 
     def report_binary_unavailable(self, result: AnalysisResult):
-        bdr = BinaryDetonationResult.select(BinaryDetonationResult.md5 == result.md5)
+        bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
         bdr.binary_not_available = True
         bdr.num_attempts += 1
         bdr.last_scan_attempt = datetime.now()
