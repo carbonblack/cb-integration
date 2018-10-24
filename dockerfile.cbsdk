@@ -3,7 +3,7 @@ FROM python:3.6
 #
 # Update the virtual machine
 #
-RUN apt-get update && apt-get install -y nginx supervisor vim net-tools less redis-server
+RUN apt-get update && apt-get install -y nginx vim net-tools less redis-server
 
 # Install NPM 10+
 #
@@ -67,4 +67,4 @@ RUN chown -R supervisor:supervisor /var/log
 # Start supervisord
 #
 #
-CMD ["/usr/bin/supervisord", "-c", "/vol/supervisord.conf"]
+CMD ["supervisord", "-c", "/vol/supervisord.conf"]
