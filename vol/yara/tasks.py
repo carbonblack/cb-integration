@@ -44,8 +44,8 @@ def analyze_binary(yara_rule_map, md5sum, cb_config):
         yara_rules = yara.compile(filepaths=yara_rule_map)
 
         try:
-            matches = "debug"
-            # matches = yara_rules.match(data=binary_data, timeout=30)
+            #matches = "debug"
+            matches = yara_rules.match(data=binary_data, timeout=30)
         except yara.TimeoutError:
             #
             # yara timed out

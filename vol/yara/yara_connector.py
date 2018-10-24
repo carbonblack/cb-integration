@@ -90,8 +90,9 @@ def main():
                      provider_url="http://plusvic.github.io/yara/",
                      icon_path="icon/yara-logo.png",
                      display_name="Yara")
-
+    logger.info("About to comile rules")
     yara_rules = compile_rules(os.path.join("/vol", bd.name, 'yara_rules'))
+    logger.info("Done compiling rules...")
     analysis_result = None
     for binary in bd.binaries_to_scan():
         logger.info(f"scanning {binary.md5}...")

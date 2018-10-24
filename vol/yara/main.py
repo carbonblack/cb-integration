@@ -76,7 +76,7 @@ class YaraObject(threading.Thread):
             time.sleep(5)
 
     def get_yara_rules_directory(self):
-        return os.path.join(bd.get_volume_directory(), "yara", "yara_rules")
+        return os.path.join("/vol", "yara", "yara_rules")
 
     def check_yara_rules(self):
         new_rule_map = self.generate_rule_map(self.get_yara_rules_directory())
@@ -103,7 +103,7 @@ def main():
                      summary="Scan binaries collected by Carbon Black with Yara.",
                      tech_data="There are no requirements to share any data with Carbon Black to use this feed.",
                      provider_url="http://plusvic.github.io/yara/",
-                     icon_path="icon/yara-logo.png",
+                     icon_path="yara-logo.png",
                      display_name="Yara")
 
     yara_object.start()
