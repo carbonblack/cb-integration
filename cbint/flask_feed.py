@@ -8,7 +8,7 @@ from cbint.binary_database import BinaryDetonationResult, db
 import cbint.globals
 
 logger = logging.getLogger(__name__)
-
+'''
 app = Flask('cbint', static_folder=os.path.join(os.path.dirname(os.path.realpath(__file__)), "static"))
 
 
@@ -27,3 +27,10 @@ def statistics():
 @app.route("/", methods=['GET'])
 def basic_pages(**kwargs):
     return make_response(open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "static", "index.html")).read())
+
+'''
+
+
+
+
+

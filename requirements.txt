@@ -9,3 +9,4 @@ requests
 yara-python
 psycopg2
 celery
+git+https://github.com/Supervisor/supervisor@master 

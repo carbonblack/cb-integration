@@ -34,6 +34,9 @@ class BinaryCollector(threading.Thread):
         self.current_index = 0
         self.terminate = False
         self.binary_time = datetime.now()
+        self.cb = CbResponseAPI(url=cbint.globals.g_config.get("carbonblack_server_url"),
+                                token=cbint.globals.g_config.get("carbonblack_server_token"),
+                                ssl_verify=cbint.globals.g_config.getboolean("carbonblack_server_sslverify"))
 
     def get_newest_binary_date(self):
         results = BinaryDetonationResult().select().order_by(BinaryDetonationResult.server_added_timestamp.desc())
@@ -56,6 +59,7 @@ class BinaryCollector(threading.Thread):
 
     def collect_oldest_newest_binaries(self):
         while True:
+            #logger.debug("Binary collector collecting binaries")
             try:
                 #
                 # Get the newest binary we have in the sqlite db
@@ -70,9 +74,6 @@ class BinaryCollector(threading.Thread):
                     #datetime_object = newest_binary_date
                     query += " server_added_timestamp:[{0} TO *]".format(convert_to_cb(datetime_object))
 
-                self.cb = CbResponseAPI(url=cbint.globals.g_config.get("carbonblack_server_url"),
-                                        token=cbint.globals.g_config.get("carbonblack_server_token"),
-                                        ssl_verify=cbint.globals.g_config.getboolean("carbonblack_server_sslverify"))
 
                 binary_query = self.cb.select(Binary).where(query).sort("server_added_timestamp asc")
                 binary_query._batch_size = PAGE_SIZE

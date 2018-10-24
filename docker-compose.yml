@@ -1,0 +1,9 @@
+version: '3'
+services:
+      cbsdk:
+        image: cbsdk:latest
+        build: .
+        ports:
+         - "5000:80"
+        volumes:
+            - ./vol:/vol

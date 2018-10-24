@@ -5,6 +5,17 @@ FROM python:3.6
 #
 RUN apt-get update && apt-get install -y nginx supervisor vim net-tools less redis-server
 
+# Install NPM 10+
+#
+RUN curl -sS https://deb.nodesource.com/setup_10.x | bash -
+RUN apt-get install -y nodejs
+
+#install yarn
+RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
+RUN echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
+RUN apt-get update && apt-get install yarn
+RUN yarn --version
+
 #
 # Copy requirements.txt
 #
@@ -29,7 +40,7 @@ COPY setup.py /
 #
 # Create a directory for connector source code
 #
-RUN mkdir /connectors
+#RUN mkdir /connectors
 
 #
 # Create volume directory
@@ -37,12 +48,23 @@ RUN mkdir /connectors
 RUN mkdir /vol
 
 #
+#
+#
+COPY cbsdkui /cbsdkui
+
+#
 # run the install script for cbsdk
 #
 RUN python3 setup.py install
 
 #
+#create supervisor user
+#
+RUN useradd supervisor
+RUN chown -R supervisor:supervisor /var/log
+
+#
 # Start supervisord
 #
-CMD ["/usr/bin/supervisord", "-c", "/vol/supervisord/supervisord.conf"]
-
+#
+CMD ["/usr/bin/supervisord", "-c", "/vol/supervisord.conf"]

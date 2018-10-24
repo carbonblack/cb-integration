@@ -17,7 +17,6 @@ from cbint.binary_collector import BinaryCollector
 from cbint.binary_database import BinaryDetonationResult
 from cbint.binary_database import db
 from cbint.cbfeeds import CbReport, CbFeed
-from cbint.flask_feed import app
 from cbint.integration import Integration
 from cbint.utils.helpers import report_error_statistics
 from cbint.message_bus import CBAsyncConsumer
@@ -39,10 +38,10 @@ class BinaryDetonation(Integration):
 
         logger.debug("Attempting to connect to sqlite database...")
         try:
-            db.init(os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db"))
+            db.init(os.path.join("/vol", self.name, "db", "binary.db"))
             # db.init(os.path.join(cbint.globals.g_volume_directory, "binary.db"))
             logger.debug("Binary Db Path: {0}".format(
-                os.path.join(cbint.globals.g_volume_directory, self.name, "db", "binary.db")))
+                os.path.join("/vol", self.name, "db", "binary.db")))
             db.start()
             db.connect()
             db.create_tables([BinaryDetonationResult])
@@ -63,6 +62,7 @@ class BinaryDetonation(Integration):
         self.binary_collector = bc
         logger.debug("Binary Collector has started")
 
+        '''
         self.flask_feed = app
         self.flask_thread = threading.Thread(target=self.flask_feed.run,
                                              kwargs={"host": "127.0.0.1",
@@ -72,6 +72,9 @@ class BinaryDetonation(Integration):
 
         self.flask_thread.daemon = True
         self.flask_thread.start()
+        '''
+
+
 
         self.db_inserter_thread = threading.Thread(target=self.insert_binaries_from_db)
         self.db_inserter_thread.daemon = True
@@ -225,7 +228,7 @@ class BinaryDetonation(Integration):
             self.reports.append(CbReport(**fields))
             self.feed = CbFeed(self.feedinfo, self.reports)
 
-        with open(os.path.join(cbint.globals.g_volume_directory, self.name, "feed", "feed.json"), 'w') as fp:
+        with open(os.path.join("/vol", self.name, "feed", "feed.json"), 'w') as fp:
             fp.write(self.feed.dump())
 
     def report_successful_detonation(self, result: AnalysisResult):
@@ -264,9 +267,8 @@ class BinaryDetonation(Integration):
         logger.info(f'{result.md5} failed detonation')
 
     def report_binary_unavailable(self, result: AnalysisResult):
-        bdr = BinaryDetonationResult.select(BinaryDetonationResult.md5 == result.md5)
+        bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
         bdr.binary_not_available = True
-        bdr.server_added_timestamp = result.server_added_timestamp
         bdr.num_attempts += 1
         bdr.last_scan_attempt = datetime.now()
         bdr.save()
