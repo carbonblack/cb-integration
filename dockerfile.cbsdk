@@ -57,6 +57,12 @@ COPY cbsdkui /cbsdkui
 #
 RUN python3 setup.py install
 
+#SET PYTHONPATH
+#
+##
+#
+ENV PYTHONPATH  /vol 
+
 #
 #create supervisor user
 #
@@ -67,4 +73,5 @@ RUN chown -R supervisor:supervisor /var/log
 # Start supervisord
 #
 #
+
 CMD ["supervisord", "-c", "/vol/supervisord.conf"]

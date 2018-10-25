@@ -10,7 +10,9 @@ from celery import group
 from tasks import analyze_binary
 from cbint.analysis import AnalysisResult
 import cbint.globals
-
+import xmlrpc.server
+from xmlrpc.server import SimpleXMLRPCServer
+from xmlrpc.server import SimpleXMLRPCRequestHandler
 from cbint.detonation import BinaryDetonation
 
 logger = logging.getLogger(__name__)
@@ -20,6 +22,11 @@ bd = None
 
 MAX_SCANS = 4
 
+
+
+# Restrict to a particular path.
+class RequestHandler(SimpleXMLRPCRequestHandler):
+    rpc_paths = ('/RPC2',)
 
 class YaraObject(threading.Thread):
     def __init__(self, bd):
@@ -76,7 +83,13 @@ class YaraObject(threading.Thread):
             time.sleep(5)
 
     def get_yara_rules_directory(self):
-        return os.path.join("/vol", "yara", "yara_rules")
+        return os.path.join("/vol", "yaraconnector", "yara_rules")
+
+    def get_yara_ruels(self):
+        return self.yara_rule_map
+
+    def rescan_all(self):
+        pass
 
     def check_yara_rules(self):
         new_rule_map = self.generate_rule_map(self.get_yara_rules_directory())
@@ -95,7 +108,7 @@ class YaraObject(threading.Thread):
 def main():
     global bd
 
-    bd = BinaryDetonation(name="yara")
+    bd = BinaryDetonation(name="yaraconnector")
 
     yara_object = YaraObject(bd)
 
@@ -107,6 +120,17 @@ def main():
                      display_name="Yara")
 
     yara_object.start()
+
+    # Create server
+    with SimpleXMLRPCServer(('localhost', 9002),
+                            requestHandler=RequestHandler) as server:
+        server.register_introspection_functions()
+
+
+        server.register_instance(yara_object)
+
+        # Run the server's main loop
+        server.serve_forever()
 
     while True:
         time.sleep(60)

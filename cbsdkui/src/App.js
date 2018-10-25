@@ -1,31 +1,41 @@
 import React, { Component } from 'react';
 import {Table} from 'semantic-ui-react';
-import supervisord from 'supervisord';
+//import supervisord from 'supervisord';
 import './App.css';
 import _ from 'lodash'
+import xmlrpc from 'xmlrpc';
 
 class App extends Component {
   constructor(props) { 
        super(props);
        this.state = {data:{},time: new Date(),error:null}
-       this.supervisord_client = supervisord.connect('http://localhost:5000/supervisor');
+       this.xmlrpclient = xmlrpc.createClient({ host: 'localhost', port: 5000, cookies: true, path: '/RPC2'})
   }
   tick() { 
       this.setState(prevState => ({
             time: new Date()
       }));
-      this.supervisord_client.getAllProcessInfo((err,result) => { 
-          this.setState({data:result,error:err})
-          console.log(err);
-          console.log(result);
+      this.xmlrpclient.methodCall('supervisor.getAllProcessInfo', [], (error, value) => {
+            if (error) {
+                console.log('error:', error);
+                console.log('req headers:', error.req && error.req._header);
+                console.log('res code:', error.res && error.res.statusCode);
+                console.log('res body:', error.body);
+            } else {
+                console.log(value);
+                this.setState({data:value});
+            }
       });
-  }
+}
+
   componentDidMount() { 
-      this.interval = setInterval(() => this.tick(),1000);
+      this.interval = setInterval(() => this.tick(),7770);
   }
+
   componentWillUnmount() { 
       clearInterval(this.interval);
   }
+
   render() {
     const {data} = this.state;
     return (
@@ -53,7 +63,7 @@ class App extends Component {
                                      {datum['description']}
                                     </Table.Cell>
                                     <Table.Cell collapsing>
-                                        {datum['StateName']}
+                                        {datum['statename']}
                                     </Table.Cell>
                                     <Table.Cell collapsing>
                                         {datum['log']}

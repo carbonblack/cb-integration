@@ -1,6 +1,6 @@
 from celery import Celery
 
-app = Celery('yara', backend='redis://localhost', broker='redis://localhost')
+app = Celery('yaraconnector', backend='redis://localhost', broker='redis://localhost')
 app.conf.task_serializer = "pickle"
 app.conf.result_serializer = "pickle"
 app.conf.accept_content = {"pickle"}

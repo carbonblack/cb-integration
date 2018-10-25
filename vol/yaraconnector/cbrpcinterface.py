@@ -1,13 +1,20 @@
 import logging
 from supervisor.rpcinterface import SupervisorNamespaceRPCInterface
-import cbint.globals
+import xmlrpc.client
+
 class CbFeedInterface:
+
     def __init__(self, supervisord):
         self.supervisord = supervisord
-        self.retries = 3
+        self.clientToDaemon = xmlrpc.client.ServerProxy('http://localhost:9002')
+
+    def listMethods(self):
+        return self.clientToDaemon.system.listMethods()
 
     def forceRescanAll(self,name):
-        cbint.globals.g_integration.force_rescan_all()
+        self.clientToDaemon.forceRescanAll()
+
+
 
 def make_custom_rpcinterface(supervisord):
     return CbFeedInterface(supervisord)

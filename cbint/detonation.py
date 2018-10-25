@@ -21,10 +21,13 @@ from cbint.integration import Integration
 from cbint.utils.helpers import report_error_statistics
 from cbint.message_bus import CBAsyncConsumer
 
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 BINARY_QUEUE_MAX_SIZE = 200
+
+
 
 
 class BinaryDetonation(Integration):
