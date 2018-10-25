@@ -2,19 +2,24 @@
  * Created by zestep on 10/25/18.
  */
 import React, { Component } from 'react';
-import {Table, Modal, Button, Header, Menu} from 'semantic-ui-react';
+import {Grid, Menu} from 'semantic-ui-react';
 import _ from 'lodash';
 class ConnectorMenu extends Component {
 
     constructor(props) {
        super(props);
-       this.xmlrpclient = props.xmlrpclient;
+       this.xmlrpcclient = props.xmlrpcclient;
        this.connectorname = props.connectorname;
-       this.state = {selected: "",rpcreturn:"Nothing yet"};
+       this.state = {selected: "",rpcreturn:"",methods:[]};
+    }
+
+    componentDidMount() {
+        this.listAllMethodsForConnector();
     }
 
     listAllMethodsForConnector() {
-        this.xmlrpclient.methodCall(this.connectorname+".listAllMethods", [], (error, value) => {
+        var return_value = null;
+        this.xmlrpcclient.methodCall(this.connectorname+".listAllMethods", [], (error, value) => {
             if (error) {
                 console.log("Connctor name is "+this.connectorname);
                 console.log('error:', error);
@@ -24,14 +29,14 @@ class ConnectorMenu extends Component {
                 return [];
             } else {
                 console.log(value);
-                return value;
+                this.setState({methods:value});
             }
         });
     }
 
-    handleItemClick(e, name) {
+    handleItemClick = (e, {name}) => {
         this.setState({selected: name});
-        this.xmlrpclient.methodCall(this.connectorname + "." + name, [], (error, value) = > {
+        this.xmlrpcclient.methodCall(this.connectorname + "." + name, [], (error, value) => {
             if (error) {
                 console.log("Connctor name is " + this.connectorname);
                 console.log("Method name is : " + name)
@@ -48,21 +53,22 @@ class ConnectorMenu extends Component {
     }
 
     render() {
-        const {selected,rpcreturn} = this.state;
+        const {selected,rpcreturn,methods} = this.state;
+        console.log(methods);
         return (
          <Grid>
          <Grid.Column width={4}>
          <Menu fluid vertical tabular>
-                <Menu.Header>Available Methods</Method.Header>
-            {_.map(this.listAllMethodsForConnector(),method) => (
+            <Menu.Header>Available Methods</Menu.Header>
+            { _.map( methods , (method) => (
                 <Menu.Item name={method} active={selected === method} onClick={this.handleItemClick} />
-                </Menu.Item>
-            )}
-         </Menu>
+            ))}
+            </Menu>
             </Grid.Column>
-            <Grid.Column
-                    {rpcreturn}
-            <Grid.Column>
+            <Grid.Column width={12}>
+                {rpcreturn}
+            </Grid.Column>
+          </Grid>
         );
     }
 }

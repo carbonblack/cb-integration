@@ -48,7 +48,7 @@ COPY setup.py /
 RUN mkdir /vol
 
 #
-#
+# COPY UI
 #
 COPY cbsdkui /cbsdkui
 
@@ -56,6 +56,17 @@ COPY cbsdkui /cbsdkui
 # run the install script for cbsdk
 #
 RUN python3 setup.py install
+
+#
+# test cbint
+#
+RUN python3 -c "from cbint import *; from cbint.detonation import * ; from cbint.analysis import *; pass"
+
+#
+# COPY UI
+#
+COPY cbsdkui /cbsdkui
+
 
 #SET PYTHONPATH
 #

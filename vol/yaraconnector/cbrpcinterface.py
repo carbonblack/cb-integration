@@ -14,6 +14,8 @@ class CbFeedInterface:
     def forceRescanAll(self):
         self.clientToDaemon.forceRescanAll()
 
+    def listYaraRules(self):
+        self.clientToDaemon.get_yara_rules()
 
 
 def make_custom_rpcinterface(supervisord):

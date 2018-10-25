@@ -2,20 +2,21 @@ import React, { Component } from 'react';
 import {Table, Modal, Button, Header, Menu} from 'semantic-ui-react';
 //import supervisord from 'supervisord';
 import './App.css';
-import _ from 'lodash'
+import _ from 'lodash';
+import ConnectorMenu from './ConnectorMenu.js';
 import xmlrpc from 'xmlrpc';
 
 class App extends Component {
   constructor(props) { 
        super(props);
        this.state = {data:{},time: new Date(),error:null}
-       this.xmlrpclient = xmlrpc.createClient({ host: 'localhost', port: 5000, cookies: true, path: '/RPC2'})
+       this.xmlrpcclient = xmlrpc.createClient({ host: 'localhost', port: 5000, cookies: true, path: '/RPC2'})
   }
   tick() { 
       this.setState(prevState => ({
             time: new Date()
       }));
-      this.xmlrpclient.methodCall('supervisor.getAllProcessInfo', [], (error, value) => {
+      this.xmlrpcclient.methodCall('supervisor.getAllProcessInfo', [], (error, value) => {
             if (error) {
                 console.log('error:', error);
                 console.log('req headers:', error.req && error.req._header);
@@ -26,7 +27,7 @@ class App extends Component {
                 this.setState({data:value});
             }
       });
-}
+    }
 
   componentDidMount() { 
       this.interval = setInterval(() => this.tick(),7770);
@@ -35,9 +36,6 @@ class App extends Component {
   componentWillUnmount() {
       clearInterval(this.interval);
   }
-
-
-
 
   render() {
     const {data} = this.state;
@@ -70,18 +68,7 @@ class App extends Component {
                                     </Table.Cell>
                                     <Table.Cell collapsing>
                                     <Modal trigger={<Button>manipulate</Button>}>
-                                    <Modal.Header>{datum['name']}</Modal.Header>
-                                    <Modal.Content>
-                                    <Menu>
-                                        { .map(this.listAllMethodsForConnector(datum['name']),methodName) => (
-                                            <Menu.Item name={methodName} active={}>
-
-
-                                            </Menu.Item>
-                                            )
-                                        }
-                                    </Menu>
-                                    </Modal.Content>
+                                        <ConnectorMenu xmlrpcclient={this.xmlrpcclient} connectorname={datum['name']}/>
                                     </Modal>
                                     </Table.Cell>
                                 </Table.Row>
