@@ -11,40 +11,41 @@ class ConnectorMenu extends Component {
        this.xmlrpcclient = props.xmlrpcclient;
        this.connectorname = props.connectorname;
        this.state = {selected: "",rpcreturn:"",methods:[]};
+       this.listAllMethodsForConnector();
     }
 
     componentDidMount() {
-        this.listAllMethodsForConnector();
+
     }
 
     listAllMethodsForConnector() {
-        var return_value = null;
-        this.xmlrpcclient.methodCall(this.connectorname+".listAllMethods", [], (error, value) => {
+        this.xmlrpcclient.methodCall("system.listMethods", [], (error, value) => {
             if (error) {
                 console.log("Connctor name is "+this.connectorname);
                 console.log('error:', error);
                 console.log('req headers:', error.req && error.req._header);
                 console.log('res code:', error.res && error.res.statusCode);
                 console.log('res body:', error.body);
-                return [];
+                this.setState({methods:[]});
             } else {
                 console.log(value);
-                this.setState({methods:value});
+                this.setState({methods:value.filter(method => method.includes(this.connectorname))});
             }
         });
     }
 
     handleItemClick = (e, {name}) => {
         this.setState({selected: name});
-        this.xmlrpcclient.methodCall(this.connectorname + "." + name, [], (error, value) => {
+        //var methodcall = this.connectorname + "." + name;
+        //console.log("Trying to call ",methodcall);
+        this.xmlrpcclient.methodCall(name, [], (error, value) => {
             if (error) {
-                console.log("Connctor name is " + this.connectorname);
-                console.log("Method name is : " + name)
+                console.log("Method name is : " + name);
                 console.log('error:', error);
                 console.log('req headers:', error.req && error.req._header);
                 console.log('res code:', error.res && error.res.statusCode);
                 console.log('res body:', error.body);
-                return [];
+                this.setState({rpcreturn:String(error)});
             } else {
                 console.log(value);
                 this.setState({rpcreturn:value});
@@ -66,7 +67,7 @@ class ConnectorMenu extends Component {
             </Menu>
             </Grid.Column>
             <Grid.Column width={12}>
-                {rpcreturn}
+                {String(rpcreturn)}
             </Grid.Column>
           </Grid>
         );

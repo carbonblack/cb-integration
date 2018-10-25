@@ -13,7 +13,7 @@ import cbint.globals
 import xmlrpc.server
 from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
-from cbint.detonation import BinaryDetonation
+from cbint.detonation import BinaryDetonation, BinaryDetonationResult
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -97,6 +97,10 @@ class YaraObject(threading.Thread):
             logger.info("Detected a change in yara_rules directory")
             self.yara_rule_map = new_rule_map
             logger.info(new_rule_map)
+
+    def getStatistics(self):
+        cbint.globals.g_statistics.number_binaries_db = len(BinaryDetonationResult.select())
+        return cbint.globals.g_statistics.to_dict()
 
     def run(self):
         while (True):
