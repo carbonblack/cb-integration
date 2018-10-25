@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import {Table} from 'semantic-ui-react';
+import {Table, Modal, Button, Header, Menu} from 'semantic-ui-react';
 //import supervisord from 'supervisord';
 import './App.css';
 import _ from 'lodash'
@@ -32,9 +32,12 @@ class App extends Component {
       this.interval = setInterval(() => this.tick(),7770);
   }
 
-  componentWillUnmount() { 
+  componentWillUnmount() {
       clearInterval(this.interval);
   }
+
+
+
 
   render() {
     const {data} = this.state;
@@ -47,7 +50,7 @@ class App extends Component {
                                     "name": "Name",
                                     "description": "Description",
                                     "state": "State",
-                                    "log" : "Log"
+                                    "manipulate": "Manipulate"
                                 }, (k, v) => (
                                     <Table.HeaderCell>{k}</Table.HeaderCell>))
                                 }
@@ -66,7 +69,20 @@ class App extends Component {
                                         {datum['statename']}
                                     </Table.Cell>
                                     <Table.Cell collapsing>
-                                        {datum['log']}
+                                    <Modal trigger={<Button>manipulate</Button>}>
+                                    <Modal.Header>{datum['name']}</Modal.Header>
+                                    <Modal.Content>
+                                    <Menu>
+                                        { .map(this.listAllMethodsForConnector(datum['name']),methodName) => (
+                                            <Menu.Item name={methodName} active={}>
+
+
+                                            </Menu.Item>
+                                            )
+                                        }
+                                    </Menu>
+                                    </Modal.Content>
+                                    </Modal>
                                     </Table.Cell>
                                 </Table.Row>
                 ))}

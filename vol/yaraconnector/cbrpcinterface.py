@@ -8,10 +8,10 @@ class CbFeedInterface:
         self.supervisord = supervisord
         self.clientToDaemon = xmlrpc.client.ServerProxy('http://localhost:9002')
 
-    def listMethods(self):
+    def listAllMethods(self):
         return self.clientToDaemon.system.listMethods()
 
-    def forceRescanAll(self,name):
+    def forceRescanAll(self):
         self.clientToDaemon.forceRescanAll()
 
 
