@@ -135,6 +135,9 @@ class YaraObject(threading.Thread):
     def getFeed(self):
         return ['file://vol/feeds/yaraconnector/feed.json']
 
+    def getFeedDump(self):
+        return self.bd.get_feed_dump()
+
     def run(self):
         while (True):
             self.queue_binaries()

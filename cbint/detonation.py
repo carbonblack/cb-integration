@@ -231,11 +231,18 @@ class BinaryDetonation(Integration):
             self.reports.append(CbReport(**fields))
             self.feed = CbFeed(self.feedinfo, self.reports)
 
-        with open(os.path.join("/vol","feeds", self.name, "feed.json"), 'w') as fp:
+        with open(os.path.join("/vol", self.name,"feed", "feed.json"), 'w') as fp:
             fp.write(self.feed.dump())
 
     def get_feed_dump(self,generate_new_feed=True):
-        return self.feed.dump()
+        if self.feed:
+            return self.feed.dump()
+        elif self.feed is None:
+            if generate_new_feed:
+                self.generate_feed_from_db()
+                return self.feed.dump()
+            else:
+                return "No Feed generated yet"
 
     def report_successful_detonation(self, result: AnalysisResult):
         bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
