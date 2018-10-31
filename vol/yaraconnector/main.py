@@ -114,7 +114,7 @@ class YaraObject(threading.Thread):
                     ret.append("None")
         except BaseException as bae:
             ret.append(str({"error":str(bae),"query":query}))
-        return ret
+        return ret if len(ret) > 0 else ["Result set was empty"]
 
     def check_yara_rules(self,forcerescan=False):
         new_rule_map = self.generate_rule_map(self.get_yara_rules_directory())
@@ -135,8 +135,14 @@ class YaraObject(threading.Thread):
     def getFeed(self):
         return ['file://vol/feeds/yaraconnector/feed.json']
 
+    def getBinaryQueue(self):
+        return [str(s) for s in self.bd.get_binary_queue().queue]
+
     def getFeedDump(self):
-        return self.bd.get_feed_dump()
+        try:
+            return self.bd.get_feed_dump()
+        except BaseException as bae:
+            return str(bae)
 
     def run(self):
         while (True):

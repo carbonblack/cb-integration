@@ -29,7 +29,8 @@ class App extends Component {
       });
     }
 
-  componentDidMount() { 
+  componentDidMount() {
+      this.tick();
       this.interval = setInterval(() => this.tick(),7770);
   }
 

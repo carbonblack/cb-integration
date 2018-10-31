@@ -38,7 +38,10 @@ class CbFeedInterface:
         return self.clientToDaemon.getFeed()
 
     def getFeedDump(self):
-        return self.clientToDaemon.get_feed_dump()
+        return self.clientToDaemon.getFeedDump()
+
+    def getBinaryQueue(self):
+        return self.clientToDaemon.getBinaryQueue()
 
 
 def make_custom_rpcinterface(supervisord):

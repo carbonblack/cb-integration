@@ -7,6 +7,7 @@ import time
 import traceback
 from datetime import datetime, timedelta
 import json
+from peewee import DateTimeField
 
 from cbapi.errors import *
 from cbapi.response.models import Binary
@@ -35,6 +36,7 @@ class BinaryDetonation(Integration):
     def __init__(self, name=""):
         super().__init__(name=name)
         self.binary_queue = queue.PriorityQueue(maxsize=BINARY_QUEUE_MAX_SIZE)
+        self.feed = None
 
         #
         # Connect to the sqlite db and make sure the tables are created
@@ -91,13 +93,16 @@ class BinaryDetonation(Integration):
             logger.debug("%s",message)
             try:
                 det = BinaryDetonationResult()
-                det.md5 = json.loads(message).get("md5")
+                msg = json.loads(message)
+                det.md5 = msg.get("md5")
                 det.from_rabbitmq = True
+                det.server_added_timestamp = datetime.fromtimestamp(msg.get("event_timestamp")).isoformat()#datetime.fromtimestamp(msg.get("event_timestamp"))
                 #
                 # Save into database
                 #
                 det.save()
-                self.download_binary_insert_queue(det.md5, 1)
+                self.binary_insert_queue(det.md5, 1)
+                logger.debug("Done w/ async bin insert")
             except Exception as e:
                 logger.debug("Exception in async consumer....")
                 logger.debug(e)
@@ -118,6 +123,10 @@ class BinaryDetonation(Integration):
         logger.debug("Async consumer running")
         cbint.globals.g_integration = self
         logger.debug("init complete")
+
+
+    def get_binary_queue(self):
+        return self.binary_queue
 
     def set_feed_info(self,
                       name,
@@ -173,7 +182,7 @@ class BinaryDetonation(Integration):
                             .where((BinaryDetonationResult.binary_not_available.is_null()) | \
                                    (BinaryDetonationResult.last_scan_date.is_null()) | \
                                    (BinaryDetonationResult.force_rescan == True)) \
-                            .order_by(BinaryDetonationResult.server_added_timestamp.desc()) \
+                            .order_by(BinaryDetonationResult.server_added_timestamp.desc(),BinaryDetonationResult.from_rabbitmq.asc()) \
                             .limit(500)
                     cursor = db.execute(query)
                     for item in cursor:
@@ -235,12 +244,14 @@ class BinaryDetonation(Integration):
             fp.write(self.feed.dump())
 
     def get_feed_dump(self,generate_new_feed=True):
-        if self.feed:
+        if self.feed is not None:
             return self.feed.dump()
-        elif self.feed is None:
+        else:
             if generate_new_feed:
                 self.generate_feed_from_db()
-                return self.feed.dump()
+                if self.feed is not None:
+                    return self.feed.dump()
+                return str(self.feedinfo)
             else:
                 return "No Feed generated yet"
 
@@ -267,6 +278,7 @@ class BinaryDetonation(Integration):
             self.generate_feed_from_db()
 
     def report_failure_detonation(self, result: AnalysisResult):
+        logger.info(result)
         bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
         bdr.score = result.score
         bdr.last_error_msg = result.last_error_msg
