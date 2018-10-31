@@ -6,6 +6,7 @@ import threading
 import time
 import traceback
 from datetime import datetime, timedelta
+import json
 
 from cbapi.errors import *
 from cbapi.response.models import Binary
@@ -87,36 +88,35 @@ class BinaryDetonation(Integration):
 
         def submit_binary_to_db_and_queue(message):
             logger.debug("Submitting binary to db and queue")
+            logger.debug("%s",message)
             try:
                 det = BinaryDetonationResult()
-                det.md5 = message.get("md5")
-
+                det.md5 = json.loads(message).get("md5")
+                det.from_rabbitmq = True
                 #
                 # Save into database
                 #
                 det.save()
-                self.download_binary_insert_queue(det, 1)
+                self.download_binary_insert_queue(det.md5, 1)
             except Exception as e:
                 logger.debug("Exception in async consumer....")
                 logger.debug(e)
 
-        # self.cbasyncconsumer = CBAsyncConsumer(amqp_url=amqp_url,
-        #                           exchange='api.events',
-        #                           queue='binarystore',
-        #                           routing_key='binarystore.file.added',
-        #                           exchange_type='topic',
-        #                           exchange_durable=True,
-        #                           arguments={'x-max-length': 10000},
-        #                           worker=submit_binary_to_db_and_queue
-        #                           )
-        # logger.debug("Starting async consumer")
-        # self.asyncconsumer_thread = threading.Thread(target=self.cbasyncconsumer.run)
-        # self.asyncconsumer_thread.daemon = True
-        # self.asyncconsumer_thread.start()
-        # logger.debug("Async consumer running")
-
+        self.cbasyncconsumer = CBAsyncConsumer(amqp_url=amqp_url,
+                                   exchange='api.events',
+                                   queue='binarystore',
+                                   routing_key='binarystore.file.added',
+                                   exchange_type='topic',
+                                   exchange_durable=True,
+                                   arguments={'x-max-length': 10000},
+                                   worker=submit_binary_to_db_and_queue
+                                   )
+        logger.debug("Starting async consumer")
+        self.asyncconsumer_thread = threading.Thread(target=self.cbasyncconsumer.run)
+        self.asyncconsumer_thread.daemon = True
+        self.asyncconsumer_thread.start()
+        logger.debug("Async consumer running")
         cbint.globals.g_integration = self
-
         logger.debug("init complete")
 
     def set_feed_info(self,
@@ -231,8 +231,11 @@ class BinaryDetonation(Integration):
             self.reports.append(CbReport(**fields))
             self.feed = CbFeed(self.feedinfo, self.reports)
 
-        with open(os.path.join("/vol", self.name, "feed", "feed.json"), 'w') as fp:
+        with open(os.path.join("/vol","feeds", self.name, "feed.json"), 'w') as fp:
             fp.write(self.feed.dump())
+
+    def get_feed_dump(self,generate_new_feed=True):
+        return self.feed.dump()
 
     def report_successful_detonation(self, result: AnalysisResult):
         bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
@@ -276,3 +279,10 @@ class BinaryDetonation(Integration):
         bdr.last_scan_attempt = datetime.now()
         bdr.save()
         cbint.globals.g_statistics.binaries_not_local += 1
+
+    #cleanup
+    def close(self):
+        self.db_object.close()
+
+
+

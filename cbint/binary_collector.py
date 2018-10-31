@@ -96,18 +96,8 @@ class BinaryCollector(threading.Thread):
                         det = BinaryDetonationResult()
                         det.md5 = binary.md5
                         det.server_added_timestamp = binary.server_added_timestamp
-
                         #logger.info(binary.md5)
-
-                        try:
-                            binary.file.read()
-                            self.binary_queue.put((3, time.time(), binary), block=False, timeout=None)
-                        except Exception as e:
-                            pass
-
-                        #
                         # Save into database
-                        #
                         det.save()
                         time.sleep(self.sleep_interval)
                     except Exception as e:

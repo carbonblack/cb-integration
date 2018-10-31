@@ -4,6 +4,7 @@ import time
 import traceback
 import os
 import hashlib
+import json
 import threading
 
 from celery import group
@@ -85,22 +86,54 @@ class YaraObject(threading.Thread):
     def get_yara_rules_directory(self):
         return os.path.join("/vol", "yaraconnector", "yara_rules")
 
-    def get_yara_ruels(self):
+    def get_yara_rules(self):
         return self.yara_rule_map
 
-    def rescan_all(self):
-        pass
+    def forceRescanAll(self):
+        self.bd.force_rescan_all()
+        return True
 
-    def check_yara_rules(self):
+    def get_result_for(self,hash):
+        if len(BinaryDetonationResult.select().where(BinaryDetonationResult.md5==hash) > 0):
+            try:
+                return json.dumps(str(BinaryDetonationResult.select().where(BinaryDetonationResult.md5 == hash).get().model_to_dict()))
+            except BaseException as e:
+                return {"error":str(e)}
+        else:
+            return {}
+
+    def executeBinaryQuery(self,query):
+        ret = []
+        try:
+            cursor = self.bd.db_object.execute_sql(query)
+            for value in cursor:
+                logger.info(str(value))
+                if value is not None:
+                    ret.append(str(value))
+                if value is None:
+                    ret.append("None")
+        except BaseException as bae:
+            ret.append(str({"error":str(bae),"query":query}))
+        return ret
+
+    def check_yara_rules(self,forcerescan=False):
         new_rule_map = self.generate_rule_map(self.get_yara_rules_directory())
         if self.yara_rule_map != new_rule_map:
             logger.info("Detected a change in yara_rules directory")
+            if forcerescan:
+                logger.info("Rescanning after change in yara_rules directory...")
+                self.bd.force_rescan_all()
             self.yara_rule_map = new_rule_map
             logger.info(new_rule_map)
 
     def getStatistics(self):
-        cbint.globals.g_statistics.number_binaries_db = len(BinaryDetonationResult.select())
-        return cbint.globals.g_statistics.to_dict()
+        return len(BinaryDetonationResult.select())
+
+    def getDebugLogs(self):
+        return ["file://vol/yaraconnector/yaraconnector.stderr.log","file://vol/yaraconnector/yaraconnector.stdout.log"]
+
+    def getFeed(self):
+        return ['file://vol/feeds/yaraconnector/feed.json']
 
     def run(self):
         while (True):
@@ -126,18 +159,20 @@ def main():
     yara_object.start()
 
     # Create server
-    with SimpleXMLRPCServer(('localhost', 9002),
-                            requestHandler=RequestHandler) as server:
-        server.register_introspection_functions()
+    try:
+        with SimpleXMLRPCServer(('localhost', 9002),
+                            requestHandler=RequestHandler,allow_none=True) as server:
+            server.register_introspection_functions()
 
 
-        server.register_instance(yara_object)
+            server.register_instance(yara_object)
 
-        # Run the server's main loop
-        server.serve_forever()
+            # Run the server's main loop
+            server.serve_forever()
 
-    while True:
-        time.sleep(60)
+    finally:
+        bd.close()
+
 
 
 if __name__ == '__main__':

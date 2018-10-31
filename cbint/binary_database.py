@@ -51,6 +51,10 @@ class BinaryDetonationResult(Model):
     num_attempts = IntegerField(default=0)
 
     #
+    from_rabbitmq = BooleanField(default=False)
+    #
+
+    #
     # copied from Cb Response Server
     #
     server_added_timestamp = DateTimeField()
