@@ -109,11 +109,11 @@ class YaraObject(threading.Thread):
             for value in cursor:
                 logger.info(str(value))
                 if value is not None:
-                    ret.append(str(value))
+                    ret.append([str(x) for x in value])
                 if value is None:
-                    ret.append("None")
+                    ret.append(["None"])
         except BaseException as bae:
-            ret.append(str({"error":str(bae),"query":query}))
+            ret.append([str({"error":str(bae),"query":query})])
         return ret if len(ret) > 0 else ["Result set was empty"]
 
     def check_yara_rules(self,forcerescan=False):

@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import {Table, Modal, Button, Header, Menu} from 'semantic-ui-react';
+import {Segment,Header,Table, Modal, Button, Grid} from 'semantic-ui-react';
 //import supervisord from 'supervisord';
 import './App.css';
 import _ from 'lodash';
@@ -24,7 +24,7 @@ class App extends Component {
                 console.log('res body:', error.body);
             } else {
                 console.log(value);
-                this.setState({data:value});
+                this.setState({data:value.filter(v => ['redis','ui','nginx'].includes(v) === false )});
             }
       });
     }
@@ -42,22 +42,34 @@ class App extends Component {
     const {data} = this.state;
     return (
       <div className="App">
-        <Table celled>
+        <Grid>
+        <Grid.Row height={4}>
+              <Grid.Column width={4}/>
+              <Grid.Column width={8}><Segment inverted >
+                                    <Header as="h1" inverted  >Cb Connector Management UI</Header>
+                                    </Segment>
+              </Grid.Column>
+              <Grid.Column width={4}/>
+          </Grid.Row>
+        <Grid.Row height={10}>
+        <Grid.Column width={4} />
+        <Grid.Column width={8}>
+        <Table celled  >
          <Table.Header fullWidth>
                       <Table.Row>
                                 {_.map({
-                                    "name": "Name",
+                                    "name": "Connector Name",
                                     "description": "Description",
                                     "state": "State",
-                                    "manipulate": "Manipulate"
+                                    "manipulate": "Options"
                                 }, (k, v) => (
                                     <Table.HeaderCell>{k}</Table.HeaderCell>))
                                 }
                       </Table.Row>
           </Table.Header>
-          <Table.Body>
+          <Table.Body >
                 {_.map(data, (datum) => (
-                      <Table.Row key={datum['pid'].toString()}>
+                      <Table.Row key={"key"-datum['pid'].toString()}>
                                     <Table.Cell collapsing>
                                         {datum['name']}
                                     </Table.Cell>
@@ -68,8 +80,8 @@ class App extends Component {
                                         {datum['statename']}
                                     </Table.Cell>
                                     <Table.Cell collapsing>
-                                    <Modal trigger={<Button>manipulate</Button>}>
-                                        <ConnectorMenu xmlrpcclient={this.xmlrpcclient} connectorname={datum['name']}/>
+                                    <Modal trigger={<Button >Control Conector</Button>}>
+                                        <div className="modal-content"><ConnectorMenu xmlrpcclient={this.xmlrpcclient} connectorname={datum['name']}/></div>
                                     </Modal>
                                     </Table.Cell>
                                 </Table.Row>
@@ -78,6 +90,10 @@ class App extends Component {
           <Table.Footer fullWidth>
           </Table.Footer>
           </Table>
+          </Grid.Column>
+          </Grid.Row>
+          <Grid.Row height={2}/>
+          </Grid>
       </div>
     );
   }

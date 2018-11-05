@@ -4,6 +4,8 @@
   "private": true,
   "dependencies": {
     "cors": "^2.8.4",
+    "file-system": "^2.2.2",
+    "fs": "^0.0.1-security",
     "lodash": "^4.17.11",
     "react": "^16.5.2",
     "react-dom": "^16.5.2",

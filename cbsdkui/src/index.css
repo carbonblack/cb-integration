@@ -6,6 +6,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-image: url(honey_right_blue.png) !important ;
+  background-repeat: repeat !important;
+  text-color: blue !important;
 }
 
 code {

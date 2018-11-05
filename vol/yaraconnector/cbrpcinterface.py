@@ -43,6 +43,9 @@ class CbFeedInterface:
     def getBinaryQueue(self):
         return self.clientToDaemon.getBinaryQueue()
 
+    def uploadYaraRule(self):
+        return True
+
 
 def make_custom_rpcinterface(supervisord):
     return CbFeedInterface(supervisord)
