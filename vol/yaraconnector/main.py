@@ -15,6 +15,7 @@ import xmlrpc.server
 from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
 from cbint.detonation import BinaryDetonation, BinaryDetonationResult
+from peewee import fn
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -127,10 +128,13 @@ class YaraObject(threading.Thread):
             logger.info(new_rule_map)
 
     def getStatistics(self):
-        return len(BinaryDetonationResult.select())
+        bins_in_queue = self.bd.get_binary_queue().qsize()
+        entries_in_db =  BinaryDetonationResult().select(fn.COUNT(BinaryDetonationResult.md5))
+        scanned_bins = BinaryDetonationResult().select(fn.COUNT(BinaryDetonationResult.md5)).where(BinaryDetonationResult.last_scan_date)
+        return {"queue":bins_in_queue,"dbentries":str(json.dumps(entries_in_db.dicts().get())),"scanned":str(json.dumps(scanned_bins.dicts().get()))}
 
     def getDebugLogs(self):
-        return ["file://vol/yaraconnector/yaraconnector.stderr.log","file://vol/yaraconnector/yaraconnector.stdout.log"]
+        return ["file://vol/yaraconnector/yaraconnector.log"]
 
     def getFeed(self):
         return ['file://vol/feeds/yaraconnector/feed.json']

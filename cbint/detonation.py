@@ -101,7 +101,7 @@ class BinaryDetonation(Integration):
                     # Save into database
                     #
                     det.save()
-                    self.binary_insert_queue(det.md5, 1)
+                    #self.binary_insert_queue(det.md5, 1)
                 except Exception as e:
                     logger.debug("Exception in async consumer....")
                     logger.debug(e)
@@ -115,6 +115,7 @@ class BinaryDetonation(Integration):
                                    arguments={'x-max-length': 10000},
                                    worker=submit_binary_to_db_and_queue
                                    )
+
         logger.debug("Starting async consumer")
         self.asyncconsumer_thread = threading.Thread(target=self.cbasyncconsumer.run)
         self.asyncconsumer_thread.daemon = True
@@ -122,7 +123,6 @@ class BinaryDetonation(Integration):
         logger.debug("Async consumer running")
         cbint.globals.g_integration = self
         logger.debug("init complete")
-
 
     def get_binary_queue(self):
         return self.binary_queue

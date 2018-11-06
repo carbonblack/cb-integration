@@ -103,6 +103,7 @@ class ConnectorMenu extends Component {
         var rpcreturntype = typeof rpcreturn;
         var inputsection;
         console.log("RPC PARAMS ARE ",rpcparams);
+        console.log("RPC return is",rpcreturn);
         if (rpcparams){
             inputsection = (<div>{_.map(rpcparams,(key,value) => (
                             key.includes("upload") ? <div><Input label={"Upload file"} oncChange={this.handleFileUpload} type={"file"}/><Button name="Upload" onClick={this.handleFileUpload}>Upload</Button></div> : <Input label={value} onChange={(e,data) => (this.handleSetParam(value,data))} />
@@ -114,16 +115,19 @@ class ConnectorMenu extends Component {
         var modalcontent;
         if (rpcreturntype === 'string' || rpcreturntype === 'number') {
             modalcontent = (<div>{String(rpcreturn)}</div>);
-        } else if (rpcreturn.length > 0 ){
-            modalcontent = (<Table fluid striped >
-                <Table.Header fullWidth/>
-                <Table.Body>
-                {_.map(rpcreturn ,(returnpart) => (
-                <Table.Row>{_.map( typeof returnpart !== "string" ? returnpart : [returnpart], (rowitem) => (
-                    <Table.Cell>{rowitem}</Table.Cell>
-            ))}</Table.Row>))}</Table.Body><Table.Footer fullWidth/></Table>);
-        } else {
-            modalcontent = (<div>Nothing to display...yet</div>) ;
+        } else if (rpcreturn.constructor === Object){
+                modalcontent = (<Table fluid striped><Table.Body>
+                                    {_.map(rpcreturn, (value,key) => (
+                                    <Table.Row> <Table.Cell > {key}:{value}</Table.Cell ></Table.Row>))}
+                                </Table.Body></Table>);
+        } else if (rpcreturn != "" ) {
+                 modalcontent = (<Table fluid striped><Table.Body>
+                                    {_.map(rpcreturn, (row) => (
+                                    <Table.Row> <Table.Cell >{row}</Table.Cell ></Table.Row>))}
+                                </Table.Body></Table>);
+        }
+        else {
+            modalcontent = (<div>Nothing to display...yet</div> ) ;
         }
         const panes = [
             {menuItem: "connector",render: () => <Tab.Pane><Menu vertical >

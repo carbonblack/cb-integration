@@ -39,7 +39,7 @@ class BinaryCollector(threading.Thread):
                                 ssl_verify=cbint.globals.g_config.getboolean("carbonblack_server_sslverify"))
 
     def get_newest_binary_date(self):
-        results = BinaryDetonationResult().select().order_by(BinaryDetonationResult.server_added_timestamp.desc())
+        results = BinaryDetonationResult().select().order_by(BinaryDetonationResult.server_added_timestamp.desc(),BinaryDetonationResult.from_rabbitmq.desc()).limit(1)
         if not results:
             return None
         else:

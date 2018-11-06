@@ -11,10 +11,13 @@ requires docker, git for production and docker,git,yarn,npm10+ for dev
 2. Use git to download the project 
     git clone https://github.com/carbonblack/cb-integration
 
-3. the vol/<connectorname> redictory houses the configuration, source code, etc
+3. the vol/<connectorname> directory houses the configuration, source code, etc
 for each connector. Place a file called <connectorname>.conf in the directory
- of your chosen connector
-    ex) edit vol/yaraconnector/yaraconnector.conf to configura the yara connector
+ of your chosen connector.
+    1) vol/yaraconnector/yaraconnector.conf to configura the yara connector
+    2) vol/<connectorname>/supervisord.conf - contains supervisord config
+    3) vol/<connectorname>/feed - directory for feed, if any is produced
+
 
 3. Use docker-comopose to run
     docker-compose up 
@@ -33,4 +36,8 @@ cbsdk.
 Use 'make build' to build everything, or 'make ui' to build just the ui.
 
 Use 'docker-compose build' to build just the docker image.
+
+Change the log_driver: "none" line to enable verbose debug logging - by default
+the services will log to files in the vol/<connectorname> directory as specified
+in each connectors supervisord.conf file.
 
