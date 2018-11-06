@@ -90,22 +90,21 @@ class BinaryDetonation(Integration):
 
         def submit_binary_to_db_and_queue(message):
             logger.debug("Submitting binary to db and queue")
-            logger.debug("%s",message)
-            try:
-                det = BinaryDetonationResult()
-                msg = json.loads(message)
-                det.md5 = msg.get("md5")
-                det.from_rabbitmq = True
-                det.server_added_timestamp = datetime.fromtimestamp(msg.get("event_timestamp")).isoformat()#datetime.fromtimestamp(msg.get("event_timestamp"))
-                #
-                # Save into database
-                #
-                det.save()
-                self.binary_insert_queue(det.md5, 1)
-                logger.debug("Done w/ async bin insert")
-            except Exception as e:
-                logger.debug("Exception in async consumer....")
-                logger.debug(e)
+            with db.transaction() as txn:
+                try:
+                    det = BinaryDetonationResult()
+                    msg = json.loads(message)
+                    det.md5 = msg.get("md5")
+                    det.from_rabbitmq = True
+                    det.server_added_timestamp = datetime.fromtimestamp(msg.get("event_timestamp")).isoformat()#datetime.fromtimestamp(msg.get("event_timestamp"))
+                    #
+                    # Save into database
+                    #
+                    det.save()
+                    self.binary_insert_queue(det.md5, 1)
+                except Exception as e:
+                    logger.debug("Exception in async consumer....")
+                    logger.debug(e)
 
         self.cbasyncconsumer = CBAsyncConsumer(amqp_url=amqp_url,
                                    exchange='api.events',

@@ -59,14 +59,16 @@ class ConnectorMenu extends Component {
     }
 
     handleFileUpload = (filelist) => {
+        this.filelist = filelist;
+        console.log("%v",filelist)
         //do something with the file to be uploaded
-        var i = 0;
+        /*var i = 0;
         for (i=0;i < filelist.length ; i++) {
             fs.writeFile(path.join(this.setparams['directory'],filelist[i].name), filelist[i], function (err) {
                 if (err) throw err;
                     console.log('Saved! ',filelist[i].name);
                 });
-        }
+        }*/
     }
 
     handleTabClick = (e,{name}) => {
@@ -100,10 +102,11 @@ class ConnectorMenu extends Component {
         const {selected,rpcreturn,methods,rpcparams,setparams,supervisormethods} = this.state;
         var rpcreturntype = typeof rpcreturn;
         var inputsection;
+        console.log("RPC PARAMS ARE ",rpcparams);
         if (rpcparams){
             inputsection = (<div>{_.map(rpcparams,(key,value) => (
-                            key.includes("upload") ?  <Input label={"Upload file"} oncChange={this.handleFileUpload(this.files)} type={"file"}/> : <Input label={value} onChange={(e,data) => (this.handleSetParam(value,data))} />
-            ))}</div> );
+                            key.includes("upload") ? <div><Input label={"Upload file"} oncChange={this.handleFileUpload} type={"file"}/><Button name="Upload" onClick={this.handleFileUpload}>Upload</Button></div> : <Input label={value} onChange={(e,data) => (this.handleSetParam(value,data))} />
+            ))} </div> );
         } else {
             inputsection = (<div>No input required.</div>);
         }
@@ -111,7 +114,7 @@ class ConnectorMenu extends Component {
         var modalcontent;
         if (rpcreturntype === 'string' || rpcreturntype === 'number') {
             modalcontent = (<div>{String(rpcreturn)}</div>);
-        } else {
+        } else if (rpcreturn.length > 0 ){
             modalcontent = (<Table fluid striped >
                 <Table.Header fullWidth/>
                 <Table.Body>
@@ -119,18 +122,18 @@ class ConnectorMenu extends Component {
                 <Table.Row>{_.map( typeof returnpart !== "string" ? returnpart : [returnpart], (rowitem) => (
                     <Table.Cell>{rowitem}</Table.Cell>
             ))}</Table.Row>))}</Table.Body><Table.Footer fullWidth/></Table>);
-        };
-
-
+        } else {
+            modalcontent = (<div>Nothing to display...yet</div>) ;
+        }
         const panes = [
             {menuItem: "connector",render: () => <Tab.Pane><Menu vertical >
                                                      { _.map(methods,(method) => (
-                                                            <Menu.Item name={method} active={selected === method} onClick={this.handleItemClick} />
+                                                            <Menu.Item name={method} active={selected === method} onClick={this.handleItemClick}>{method.slice(this.connectorname.length+1)}</Menu.Item>
                                                         ))}</Menu>
                                                         </Tab.Pane>},
             {menuItem: "supervisor",render: () => <Tab.Pane><Menu vertical>
                                                      { _.map(supervisormethods,(method) => (
-                                                            <Menu.Item name={method} active={selected === method} onClick={this.handleItemClick} />
+                                                            <Menu.Item name={method} active={selected === method} onClick={this.handleItemClick}>{method.slice("supervisor.".length)}</Menu.Item>
                                                         ))}</Menu>
                                                     </Tab.Pane>},
         ];

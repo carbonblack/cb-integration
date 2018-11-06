@@ -24,7 +24,7 @@ class App extends Component {
                 console.log('res body:', error.body);
             } else {
                 console.log(value);
-                this.setState({data:value.filter(v => ['redis','ui','nginx'].includes(v) === false )});
+                this.setState({data:value.filter( v => !['nginx','redis','ui'].includes(v['name']))});
             }
       });
     }
@@ -40,6 +40,7 @@ class App extends Component {
 
   render() {
     const {data} = this.state;
+
     return (
       <div className="App">
         <Grid>

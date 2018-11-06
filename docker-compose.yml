@@ -6,3 +6,4 @@ cbsdk:
     - "5000:80"
   volumes:
     - ./vol:/vol
+  log_driver: "none"
