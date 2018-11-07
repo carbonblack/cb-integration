@@ -72,11 +72,19 @@ def analyze_binary(yara_rule_map, md5sum, cb_config):
                 if matches:
                     for match in matches:
                         #score = getHighScore(matches)
+                        logger.Debug("MATCH IS" + str(match))
                         analysis_result = AnalysisResult(md5sum)
                         analysis_result.last_scan_date = datetime.datetime.now()
-                        analysis_result.score = match.score
+                        logger.Debug("MATCH.meta is " + str(match.meta))
+                        analysis_result.score = match.meta.get('score')
                         analysis_result.scanner = match.rule
                         analysis_results.append(analysis_result)
+                else:
+                    analysis_result = AnalysisResult(md5sum)
+                    analysis_result.last_scan_date = datetime.datetime.now()
+                    analysis_result.score = 0
+                    analysis_result.scanner = "No yara rule matched"
+                    analysis_results.append(analysis_result)
         else:
             analysis_result = AnalysisResult(md5sum)
             analysis_result.last_scan_date = datetime.datetime.now()
@@ -90,17 +98,3 @@ def analyze_binary(yara_rule_map, md5sum, cb_config):
         analysis_result.binary_not_available = True
         analysis_result.last_error_msg = error
         return [analysis_result]
-
-def getHighScore(matches):
-    #######
-    if matches == "debug":
-        return 0
-    #######
-    score = 0
-    for match in matches:
-        if match.meta.get('score', 0) > score:
-            score = match.meta.get('score')
-    if score == 0:
-        return 100
-    else:
-        return score

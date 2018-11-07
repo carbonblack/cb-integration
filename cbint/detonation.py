@@ -95,7 +95,7 @@ class BinaryDetonation(Integration):
                 try:
                     bin  = Binary()
                     msg = json.loads(message)
-                    bin.md5 = msg.get("md5")
+                    bin.md5 = msg.get_or_create("md5")
                     bin.from_rabbitmq = True
                     bin.server_added_timestamp = datetime.fromtimestamp(msg.get("event_timestamp")).isoformat()#datetime.fromtimestamp(msg.get("event_timestamp"))
                     #
@@ -251,15 +251,15 @@ class BinaryDetonation(Integration):
                 return "No Feed generated yet"
 
     def report_successful_detonation(self, result: AnalysisResult):
-        bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
+        bdr = DetonationResult(md5 = result.md5)
         bdr.score = result.score
-        bdr.last_success_msg = result.short_result
-        bdr.last_scan_date = bdr.last_scan_attempt = datetime.now()
+        bdr.success_msg = result.short_result
+        bdr.scan_date = datetime.now()
         bdr.binary_not_available = False
-        bdr.scan_count += 1
-        if bdr.force_rescan == True:
-            logger.info("rescan was True now set to False")
-            bdr.force_rescan = False
+        #bdr.scan_count += 1
+        #if bdr.force_rescan == True:
+        #   logger.info("rescan was True now set to False")
+        #    bdr.force_rescan = False
         bdr.save()
 
         cbint.globals.g_statistics.number_binaries_scanned += 1
@@ -274,7 +274,7 @@ class BinaryDetonation(Integration):
 
     def report_failure_detonation(self, result: AnalysisResult):
         logger.info(result)
-        bdr = DetonationResult.get(DetonationResult.md5 == result.md5)
+        bdr = DetonationResult(md5 = result.md5)
         bdr.score = result.score
         bdr.error_msg = result.last_error_msg
         bdr.error_date = datetime.now()

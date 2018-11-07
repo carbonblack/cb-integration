@@ -69,16 +69,31 @@ class YaraObject(threading.Thread):
             while not result.ready():
                 time.sleep(.1)
 
+            logger.error("RESULT READY")
             if result.successful():
-                for analysis_result in result.get():
-                    if analysis_result:
-                        if analysis_result.last_error_msg:
-                            bd.report_failure_detonation(analysis_result)
-                        elif analysis_result.binary_not_available:
-                            bd.report_binary_unavailable(analysis_result)
-                        else:
-                            analysis_result.misc = self.yara_rule_map
-                            bd.report_successful_detonation(analysis_result)
+                results = result.get()
+                logger.error("RESULTS ARE:" + str(results))
+                for analysis_result_group in results:
+                    binary_done = True
+                    logger.error("RESULT GROUP IS " + str(analysis_result_group))
+                    for analysis_result in analysis_result_group:
+                        if analysis_result:
+                            if analysis_result.last_error_msg:
+                                bd.report_failure_detonation(analysis_result)
+                                binary_done = True
+                            elif analysis_result.binary_not_available:
+                                bd.report_binary_unavailable(analysis_result)
+                                binary_done = False
+                            else:
+                                analysis_result.misc = self.yara_rule_map
+                                bd.report_successful_detonation(analysis_result)
+                                binary_done = True
+                    if binary_done:
+                        bin = Binary().select().where(Binary.md5 == analysis_result_group[0].md5).get()
+                        bin.done_scanning = True
+                        bin.save()
+
+
             else:
                 logger.error(result.traceback())
         except:
