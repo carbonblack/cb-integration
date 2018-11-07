@@ -23,10 +23,8 @@ logger.setLevel(logging.DEBUG)
 @app.task
 def analyze_binary(yara_rule_map, md5sum, cb_config):
     logger.debug("{}: in analyze_binary".format(md5sum))
-
+    analysis_results = []
     try:
-        analysis_result = AnalysisResult(md5sum)
-        analysis_result.last_scan_date = datetime.datetime.now()
 
         cb = CbResponseAPI(url=cb_config.get("carbonblack_server_url"),
                            token=cb_config.get("carbonblack_server_token"),
@@ -38,8 +36,10 @@ def analyze_binary(yara_rule_map, md5sum, cb_config):
             try:
                 binary_data = binary_query[0].file.read()
             except:
+                analysis_result = AnalysisResult(md5sum)
+                analysis_result.last_scan_date = datetime.datetime.now()
                 analysis_result.binary_not_available = True
-                return analysis_result
+                return [analysis_result]
 
             yara_rules = yara.compile(filepaths=yara_rule_map)
 
@@ -50,31 +50,46 @@ def analyze_binary(yara_rule_map, md5sum, cb_config):
                 #
                 # yara timed out
                 #
+                analysis_result = AnalysisResult(md5sum)
+                analysis_result.last_scan_date = datetime.datetime.now()
                 analysis_result.last_error_msg = "Analysis timed out after 60 seconds"
                 analysis_result.stop_future_scans = True
+                analysis_results.append(analysis_result)
             except yara.Error:
                 #
                 # Yara errored while trying to scan binary
                 #
+                analysis_result = AnalysisResult(md5sum)
+                analysis_result.last_scan_date = datetime.datetime.now()
                 analysis_result.last_error_msg = "Yara exception"
+                analysis_results.append(analysis_result)
             except:
+                analysis_result = AnalysisResult(md5sum)
+                analysis_result.last_scan_date = datetime.datetime.now()
                 analysis_result.last_error_msg = traceback.format_exc()
+                analysis_results.append(analysis_result)
             else:
                 if matches:
-                    score = getHighScore(matches)
-                    analysis_result.score = score
-                    # analysis_result.short_result = "Matched yara rules: %s" % ', '.join([match.rule for match in matches])
-                    analysis_result.short_result = "Matched yara rules: debug"
-                    analysis_result.long_result = analysis_result.long_result
-                else:
-                    analysis_result.score = 0
+                    for match in matches:
+                        #score = getHighScore(matches)
+                        analysis_result = AnalysisResult(md5sum)
+                        analysis_result.last_scan_date = datetime.datetime.now()
+                        analysis_result.score = match.score
+                        analysis_result.scanner = match.rule
+                        analysis_results.append(analysis_result)
         else:
+            analysis_result = AnalysisResult(md5sum)
+            analysis_result.last_scan_date = datetime.datetime.now()
             analysis_result.binary_not_available = True
-        return analysis_result
+            return [analysis_result]
+        return analysis_results
     except:
         error = traceback.format_exc()
+        analysis_result = AnalysisResult(md5sum)
+        analysis_result.last_scan_date = datetime.datetime.now()
+        analysis_result.binary_not_available = True
         analysis_result.last_error_msg = error
-        return analysis_result
+        return [analysis_result]
 
 def getHighScore(matches):
     #######

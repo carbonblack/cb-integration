@@ -14,7 +14,8 @@ import cbint.globals
 import xmlrpc.server
 from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
-from cbint.detonation import BinaryDetonation, BinaryDetonationResult
+from cbint.detonation import BinaryDetonation
+from cbint.binary_database import Binary, DetonationResult
 from peewee import fn
 
 logger = logging.getLogger(__name__)
@@ -95,9 +96,9 @@ class YaraObject(threading.Thread):
         return True
 
     def get_result_for(self,hash):
-        if len(BinaryDetonationResult.select().where(BinaryDetonationResult.md5==hash) > 0):
+        if len(DetonationResult.select().where(DetonationResult.md5==hash) > 0):
             try:
-                return json.dumps(str(BinaryDetonationResult.select().where(BinaryDetonationResult.md5 == hash).get().model_to_dict()))
+                return json.dumps(str(DetonationResult.select().where(DetonationResult.md5 == hash).get().model_to_dict()))
             except BaseException as e:
                 return {"error":str(e)}
         else:
@@ -129,8 +130,8 @@ class YaraObject(threading.Thread):
 
     def getStatistics(self):
         bins_in_queue = self.bd.get_binary_queue().qsize()
-        entries_in_db =  BinaryDetonationResult().select(fn.COUNT(BinaryDetonationResult.md5))
-        scanned_bins = BinaryDetonationResult().select(fn.COUNT(BinaryDetonationResult.md5)).where(BinaryDetonationResult.last_scan_date)
+        entries_in_db =  Binary().select(fn.COUNT(Binary.md5))
+        scanned_bins = Binary().select(fn.COUNT(Binary.md5)).where(Binary.done_scanning)
         return {"queue":bins_in_queue,"dbentries":str(json.dumps(entries_in_db.dicts().get())),"scanned":str(json.dumps(scanned_bins.dicts().get()))}
 
     def getDebugLogs(self):

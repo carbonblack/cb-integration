@@ -5,12 +5,12 @@ import time
 import traceback
 from datetime import datetime
 
-from cbapi.response.models import Binary
+from cbapi.response.models import Binary as CbrBinary
 from cbapi.response.rest_api import CbResponseAPI
 from dateutil import parser
 
 import cbint.globals
-from cbint.binary_database import BinaryDetonationResult
+from cbint.binary_database import Binary, DetonationResult
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -39,16 +39,16 @@ class BinaryCollector(threading.Thread):
                                 ssl_verify=cbint.globals.g_config.getboolean("carbonblack_server_sslverify"))
 
     def get_newest_binary_date(self):
-        results = BinaryDetonationResult().select().order_by(BinaryDetonationResult.server_added_timestamp.desc(),BinaryDetonationResult.from_rabbitmq.desc()).limit(1)
+        results = Binary().select().order_by(Binary.server_added_timestamp.desc(),Binary.from_rabbitmq.desc()).limit(1)
         if not results:
             return None
         else:
             return results[0].server_added_timestamp
 
     def get_oldest_binary_date(self):
-        results = BinaryDetonationResult() \
+        results = Binary() \
             .select() \
-            .order_by(BinaryDetonationResult.server_added_timestamp.asc())
+            .order_by(Binary.server_added_timestamp.asc())
         if not results:
             return None
         else:
@@ -75,7 +75,7 @@ class BinaryCollector(threading.Thread):
                     query += " server_added_timestamp:[{0} TO *]".format(convert_to_cb(datetime_object))
 
 
-                binary_query = self.cb.select(Binary).where(query).sort("server_added_timestamp asc")
+                binary_query = self.cb.select(CbrBinary).where(query).sort("server_added_timestamp asc")
                 binary_query._batch_size = PAGE_SIZE
 
                 if len(binary_query) == 0:
@@ -86,19 +86,18 @@ class BinaryCollector(threading.Thread):
                     if self.terminate:
                         break
 
-                    exist_query = BinaryDetonationResult.select().where(BinaryDetonationResult.md5 == binary.md5)
+                    exist_query = Binary.select().where(Binary.md5 == binary.md5)
                     if exist_query.exists():
                         #logger.info("binary already exists in database")
                         time.sleep(self.sleep_interval)
                         continue
 
                     try:
-                        det = BinaryDetonationResult()
-                        det.md5 = binary.md5
-                        det.server_added_timestamp = binary.server_added_timestamp
-                        #logger.info(binary.md5)
-                        # Save into database
-                        det.save()
+                        bin = Binary()
+                        bin.md5 = binary.md5
+                        bin.server_added_timestamp = binary.server_added_timestamp
+                        bin.available = True
+                        bin.save()
                         time.sleep(self.sleep_interval)
                     except Exception as e:
                         logger.error(traceback.format_exc())

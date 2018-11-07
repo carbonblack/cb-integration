@@ -17,57 +17,25 @@ db = SqliteQueueDatabase(None, autostart=False)
 #                         port=5432)
 
 
-class BinaryDetonationResult(Model):
+class Binary(Model):
+    class Meta:
+        database = db
     md5 = CharField(index=True)
-    last_scan_date = DateTimeField(index=True, null=True)
-    last_success_msg = CharField(default='', null=True)
-
-    last_error_msg = CharField(default='', null=True)
-    last_error_date = DateTimeField(null=True)
-
-    score = IntegerField(default=0)
-
-    scan_count = IntegerField(default=0)
-
-    #
-    # If There was a permanent error then set this to True
-    #
     stop_future_scans = BooleanField(default=False)
-
-    #
-    # if we could not download the binary then set this to False
-    # We will need to wait for alliance download
-    #
-    binary_not_available = BooleanField(null=True)
-
-    #
-    # Last attempt to scan this binary.  Which could have thrown an error if the binary was not available to download
-    #
-    last_scan_attempt = DateTimeField(index=True, null=True)
-
-    #
-    #
-    #
-    num_attempts = IntegerField(default=0)
-
-    #
     from_rabbitmq = BooleanField(default=False)
-    #
-
-    #
-    # copied from Cb Response Server
-    #
     server_added_timestamp = DateTimeField()
-
-    #
-    # Setting this will force detonation library to rescan this binary
-    #
     force_rescan = BooleanField(default=False)
-
-    #
-    # Misc use for connectors
-    #
     misc = CharField(default='')
+    available = BooleanField(default=False)
+    done_scanning = BooleanField(default=False)
 
+
+class DetonationResult(Model):
+    md5 = CharField(index=True)
+    scan_date = DateTimeField(null=True)
+    success_msg = CharField(default='', null=True)
+    error_msg = CharField(default='', null=True)
+    score = IntegerField(default=0,null=True)
+    scanner = CharField(null=True)
     class Meta:
         database = db

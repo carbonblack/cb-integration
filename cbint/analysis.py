@@ -23,3 +23,4 @@ class AnalysisResult(object):
         self.score = score
         self.stop_future_scans = stop_future_scans
         self.binary_not_available = binary_not_available
+        self.scanner = ""

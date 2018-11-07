@@ -16,12 +16,13 @@ from cbapi.response.rest_api import CbResponseAPI
 import cbint.globals
 from cbint.analysis import AnalysisResult
 from cbint.binary_collector import BinaryCollector
-from cbint.binary_database import BinaryDetonationResult
+from cbint.binary_database import Binary,DetonationResult
 from cbint.binary_database import db
 from cbint.cbfeeds import CbReport, CbFeed
 from cbint.integration import Integration
 from cbint.utils.helpers import report_error_statistics
 from cbint.message_bus import CBAsyncConsumer
+from peewee import *
 
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ class BinaryDetonation(Integration):
                 os.path.join("/vol", self.name, "db", "binary.db")))
             db.start()
             db.connect()
-            db.create_tables([BinaryDetonationResult])
+            db.create_tables([Binary,DetonationResult])
             self.db_object = db
         except Exception as e:
             logger.error(traceback.format_exc())
@@ -92,15 +93,15 @@ class BinaryDetonation(Integration):
             logger.debug("Submitting binary to db and queue")
             with db.transaction() as txn:
                 try:
-                    det = BinaryDetonationResult()
+                    bin  = Binary()
                     msg = json.loads(message)
-                    det.md5 = msg.get("md5")
-                    det.from_rabbitmq = True
-                    det.server_added_timestamp = datetime.fromtimestamp(msg.get("event_timestamp")).isoformat()#datetime.fromtimestamp(msg.get("event_timestamp"))
+                    bin.md5 = msg.get("md5")
+                    bin.from_rabbitmq = True
+                    bin.server_added_timestamp = datetime.fromtimestamp(msg.get("event_timestamp")).isoformat()#datetime.fromtimestamp(msg.get("event_timestamp"))
                     #
                     # Save into database
                     #
-                    det.save()
+                    bin.save()
                     #self.binary_insert_queue(det.md5, 1)
                 except Exception as e:
                     logger.debug("Exception in async consumer....")
@@ -177,17 +178,12 @@ class BinaryDetonation(Integration):
                     #logger.info("start normal")
                     # query = Tweet.select(Tweet.content, User.username).join(User)
                     # cursor = database.execute(query)
-                    query = BinaryDetonationResult.select() \
-                            .where((BinaryDetonationResult.binary_not_available.is_null()) | \
-                                   (BinaryDetonationResult.last_scan_date.is_null()) | \
-                                   (BinaryDetonationResult.force_rescan == True)) \
-                            .order_by(BinaryDetonationResult.server_added_timestamp.desc(),BinaryDetonationResult.from_rabbitmq.asc()) \
-                            .limit(500)
+                    query = Binary.select(Binary.md5).where(Binary.done_scanning == False).order_by(Binary.server_added_timestamp.desc(),Binary.from_rabbitmq.asc()).limit(500)
                     cursor = db.execute(query)
                     for item in cursor:
                         #logger.info(item[1])
                         #logger.info("start normal1")
-                        md5 = item[1]
+                        md5 = item[0] # 0 is the index of hte md4 in the result set
                         self.binary_insert_queue(md5)
                         #logger.info("start normal2")
                         self.update_global_statistics()
@@ -196,15 +192,15 @@ class BinaryDetonation(Integration):
                     # Next attempt to rescan binaries that needed to be downloaded by alliance
                     #
                     # logger.info("start alliance")
-                    for detonation in BinaryDetonationResult.select() \
-                            .where((BinaryDetonationResult.binary_not_available == True) & \
+                    '''for detonation in DetonationResult.select() \
+                            .where((DetonationResult.binary_not_available == True) & \
                                    (BinaryDetonationResult.last_scan_attempt < datetime.today() - timedelta(days=1))) \
                             .order_by(BinaryDetonationResult.last_scan_attempt.asc()) \
                             .limit(100):
                         # logger.info("start alliance1")
                         self.binary_insert_queue(detonation)
                         # logger.info("start alliance3")
-                        self.update_global_statistics()
+                        self.update_global_statistics() '''
                 except Exception as e:
                     logger.error(traceback.format_exc())
                     report_error_statistics(str(e))
@@ -216,7 +212,7 @@ class BinaryDetonation(Integration):
 
     def force_rescan_all(self):
         logger.info("force rescan on all present binaries")
-        query = BinaryDetonationResult.update(force_rescan=True).where(BinaryDetonationResult.scan_count > 0)
+        query = Binary.update(force_rescan=True,done_scanning=False).where(Binary.available)
         query.execute()
 
     def generate_feed_from_db(self):
@@ -224,11 +220,11 @@ class BinaryDetonation(Integration):
         :return:
         """
         self.reports = []
-        feed_results = BinaryDetonationResult.select().where(BinaryDetonationResult.score > 0)
+        feed_results = DetonationResult.select(FN.Max(DetonationResult.score).alias('maxscore')).where(DetonationResult.maxscore > 0)
 
         for result in feed_results:
             fields = {'iocs': {'md5': [result.md5]},
-                      'score': result.score,
+                      'score': result.maxscore,
                       'timestamp': int(time.mktime(time.gmtime())),
                       'link': '',
                       'id': f'binary_{result.md5}',
@@ -278,25 +274,21 @@ class BinaryDetonation(Integration):
 
     def report_failure_detonation(self, result: AnalysisResult):
         logger.info(result)
-        bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
+        bdr = DetonationResult.get(DetonationResult.md5 == result.md5)
         bdr.score = result.score
-        bdr.last_error_msg = result.last_error_msg
-        bdr.last_error_date = datetime.now()
-        bdr.stop_future_scans = True
-        if bdr.force_rescan == True:
-            logger.info("rescan was True now set to False")
-            bdr.force_rescan = False
+        bdr.error_msg = result.last_error_msg
+        bdr.error_date = datetime.now()
         bdr.save()
-
+        bin = Binary.get(Binary.md5 == result.md5)
+        bin.stop_future_scans = True
+        bin.force_rescan = False
+        bin.save()
         logger.info(f'{result.md5} failed detonation')
 
     def report_binary_unavailable(self, result: AnalysisResult):
-        bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)
-        bdr.binary_not_available = True
-        bdr.num_attempts += 1
-        bdr.last_scan_attempt = datetime.now()
-        bdr.save()
-        cbint.globals.g_statistics.binaries_not_local += 1
+        bin = Binary.get(Binary.md5 == result.md5)
+        bin.available = False
+        bin.save()
 
     #cleanup
     def close(self):
