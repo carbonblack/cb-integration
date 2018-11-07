@@ -66,17 +66,15 @@ class BinaryDetonation(Integration):
         self.binary_collector = bc
         logger.debug("Binary Collector has started")
 
-        '''
-        self.flask_feed = app
-        self.flask_thread = threading.Thread(target=self.flask_feed.run,
-                                             kwargs={"host": "127.0.0.1",
-                                                     "port": cbint.globals.g_config.getint('listener_port', 8080),
-                                                     "debug": False,
-                                                     "use_reloader": False})
+        # self.flask_feed = app
+        # self.flask_thread = threading.Thread(target=self.flask_feed.run,
+        #                                      kwargs={"host": "127.0.0.1",
+        #                                              "port": cbint.globals.g_config.getint('listener_port', 8080),
+        #                                              "debug": False,
+        #                                              "use_reloader": False})
 
-        self.flask_thread.daemon = True
-        self.flask_thread.start()
-        '''
+        # self.flask_thread.daemon = True
+        # self.flask_thread.start()
 
         self.db_inserter_thread = threading.Thread(target=self.insert_binaries_from_db)
         self.db_inserter_thread.daemon = True
@@ -172,12 +170,11 @@ class BinaryDetonation(Integration):
         """
         try:
             while True:
-
                 try:
                     query = Binary.select(Binary.md5).where((Binary.stop_future_scans == False) |
                                                             (Binary.force_rescan == True)).order_by(
-                                                                Binary.server_added_timestamp.desc(),
-                                                                Binary.from_rabbitmq.desc()).limit(500)
+                        Binary.server_added_timestamp.desc(),
+                        Binary.from_rabbitmq.desc()).limit(500)
 
                     cursor = db.execute(query)
                     for item in cursor:
@@ -245,6 +242,11 @@ class BinaryDetonation(Integration):
             bdr.binary_not_available = False
             bdr.save()
 
+            if result.stop_future_scans:
+                binary = Binary.get(Binary.md5 == result.md5)
+                binary.stop_future_scans = True
+                binary.save()
+
             cbint.globals.g_statistics.number_binaries_scanned += 1
 
             logger.info(f'{result.md5} scored at {result.score}')
@@ -268,6 +270,7 @@ class BinaryDetonation(Integration):
             bdr.error_msg = result.last_error_msg
             bdr.error_date = datetime.now()
             bdr.save()
+
             bin = Binary.get(Binary.md5 == result.md5)
             bin.stop_future_scans = True
             bin.force_rescan = False

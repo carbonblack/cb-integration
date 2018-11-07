@@ -77,6 +77,7 @@ def analyze_binary(yara_rule_map, md5sum, cb_config):
                         analysis_result.last_scan_date = datetime.datetime.now()
                         analysis_result.score = match.meta.get('score', 100)
                         analysis_result.scanner = match.rule
+                        analysis_result.stop_future_scans = True
                         analysis_results.append(analysis_result)
         else:
             analysis_result = AnalysisResult(md5sum)
