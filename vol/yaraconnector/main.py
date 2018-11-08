@@ -70,21 +70,17 @@ class YaraObject(threading.Thread):
                 time.sleep(.1)
 
             if result.successful():
-
                 scan_group_result_list = result.get()
-                for analysis_result_list in scan_group_result_list:
-                    for analysis_result in analysis_result_list:
-                        if analysis_result:
-                            if analysis_result.last_error_msg:
-                                logger.info(analysis_result.last_error_msg)
-                                bd.report_failure_detonation(analysis_result)
-                            elif analysis_result.binary_not_available:
-                                bd.report_binary_unavailable(analysis_result)
-                            else:
-                                logger.info(analysis_result.score)
-                                analysis_result.misc = self.yara_rule_map
-                                analysis_result.stop_future_scan = True
-                                bd.report_successful_detonation(analysis_result)
+                for analysis_result in scan_group_result_list:
+                    if analysis_result:
+                        if analysis_result.last_error_msg:
+                            bd.report_failure_detonation(analysis_result)
+                        elif analysis_result.binary_not_available:
+                            bd.report_binary_unavailable(analysis_result)
+                        else:
+                            analysis_result.misc = self.yara_rule_map
+                            analysis_result.stop_future_scan = True
+                            bd.report_successful_detonation(analysis_result)
             else:
                 logger.error(result.traceback())
         except:
@@ -136,11 +132,15 @@ class YaraObject(threading.Thread):
             logger.info(new_rule_map)
 
     def getStatistics(self):
-        bins_in_queue = self.bd.get_binary_queue().qsize()
-        entries_in_db = Binary().select(fn.COUNT(Binary.md5))
-        scanned_bins = Binary().select(fn.COUNT(Binary.md5)).where(Binary.done_scanning)
-        return {"queue": bins_in_queue, "dbentries": str(json.dumps(entries_in_db.dicts().get())),
-                "scanned": str(json.dumps(scanned_bins.dicts().get()))}
+        try:
+            bins_in_queue = self.bd.get_binary_queue().qsize()
+            entries_in_db = Binary().select(fn.COUNT(Binary.md5))
+            scanned_bins = Binary().select(fn.COUNT(Binary.md5)).where(Binary.stop_future_scans == True)
+            return {"queue": bins_in_queue,
+                    "dbentries": str(json.dumps(entries_in_db.dicts().get())),
+                    "scanned": str(json.dumps(scanned_bins.dicts().get()))}
+        except:
+            logger.info(traceback.format_exc())
 
     def getDebugLogs(self):
         return ["file://vol/yaraconnector/yaraconnector.log"]

@@ -23,6 +23,7 @@ from cbint.integration import Integration
 from cbint.utils.helpers import report_error_statistics
 from cbint.message_bus import CBAsyncConsumer
 from peewee import *
+from cbint.flask_feed import app
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -61,20 +62,24 @@ class BinaryDetonation(Integration):
         # Create a Binary Collector and start it
         #
         logger.debug("Starting binary collector...")
+
         bc = BinaryCollector(query=cbint.globals.g_config.get("binary_filter_query"), queue=self.binary_queue)
         bc.start()
         self.binary_collector = bc
+
+        cbint.globals.g_integration = self
+
         logger.debug("Binary Collector has started")
 
-        # self.flask_feed = app
-        # self.flask_thread = threading.Thread(target=self.flask_feed.run,
-        #                                      kwargs={"host": "127.0.0.1",
-        #                                              "port": cbint.globals.g_config.getint('listener_port', 8080),
-        #                                              "debug": False,
-        #                                              "use_reloader": False})
+        self.flask_feed = app
+        self.flask_thread = threading.Thread(target=self.flask_feed.run,
+                                             kwargs={"host": "127.0.0.1",
+                                                     "port": cbint.globals.g_config.getint('listener_port', 8080),
+                                                     "debug": False,
+                                                     "use_reloader": False})
 
-        # self.flask_thread.daemon = True
-        # self.flask_thread.start()
+        self.flask_thread.daemon = True
+        self.flask_thread.start()
 
         self.db_inserter_thread = threading.Thread(target=self.insert_binaries_from_db)
         self.db_inserter_thread.daemon = True
@@ -98,7 +103,7 @@ class BinaryDetonation(Integration):
                     bin.save()
                     #
                     # Testing this out for performance
-                    # self.binary_insert_queue(bin.md5, 1)
+                    self.binary_insert_queue(bin.md5, 1)
                     #
                 except Exception as e:
                     logger.debug("Exception in async consumer....")
@@ -275,6 +280,8 @@ class BinaryDetonation(Integration):
             bin.stop_future_scans = True
             bin.force_rescan = False
             bin.save()
+
+            cbint.globals.g_statistics.number_failure_detonation += 1
             logger.info(f'{result.md5} failed detonation')
         except Exception as e:
             logger.error(str(e))
@@ -284,6 +291,7 @@ class BinaryDetonation(Integration):
             bin = Binary.get(Binary.md5 == result.md5)
             bin.available = False
             bin.save()
+            cbint.globals.g_statistics.binaries_not_local += 1
         except Exception as e:
             logger.error(str(e))
 

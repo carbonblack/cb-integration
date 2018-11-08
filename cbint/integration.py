@@ -41,6 +41,7 @@ class Integration(object):
         file_handler.setFormatter(log_formatter)
 
         logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
         logger.addHandler(file_handler)
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(log_formatter)

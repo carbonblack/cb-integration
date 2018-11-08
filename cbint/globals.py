@@ -14,10 +14,14 @@ class Statistics(object):
         self.last_error_timestamp = None
         self.binaries_not_local = 0
         self.binaries_per_second = 0
+        self.number_failure_detonation = 0
+        self.number_results_db = 0
         self.bd = None
 
     def to_dict(self):
         self.binaries_per_second = self.number_binaries_scanned / (datetime.now() - self.started).total_seconds()
+        if g_integration:
+            self.binaries_in_queue = g_integration.binary_queue.qsize()
         return {key: value for key, value in self.__dict__.items() if not key.startswith('__') and not callable(key)}
 
 
