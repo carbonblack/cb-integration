@@ -161,7 +161,7 @@ class YaraObject(threading.Thread):
         while (True):
             self.queue_binaries()
             # self.check_yara_rules()
-            logger.info(self.bd.binary_queue.qsize())
+            #logger.info(self.bd.binary_queue.qsize())
 
 
 def main():

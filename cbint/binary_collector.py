@@ -3,7 +3,7 @@ import logging
 import threading
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from cbapi.response.models import Binary as CbrBinary
 from cbapi.response.rest_api import CbResponseAPI
@@ -59,23 +59,29 @@ class BinaryCollector(threading.Thread):
         self.terminate = True
 
     def collect_oldest_newest_binaries(self):
+        global PAGE_SIZE
+
         while True:
             try:
+
+
+                newest_binary_date = self.get_newest_binary_date()
+                if newest_binary_date:
+                    current_datetime = parser.parse(newest_binary_date)
+                else:
+                    current_datetime = None
                 #
                 # Get the newest binary we have in the sqlite db
                 #
-                newest_binary_date = self.get_newest_binary_date()
-
                 logger.info("binary_collector newest_binary_date: {0}".format(newest_binary_date))
 
                 query = self.query
-                if newest_binary_date:
-                    datetime_object = parser.parse(newest_binary_date)
+                if current_datetime:
                     #
                     # Keep this for postgres
                     # datetime_object = newest_binary_date
                     #
-                    query += " server_added_timestamp:[{0} TO *]".format(convert_to_cb(datetime_object))
+                    query += " server_added_timestamp:[{0} TO *]".format(convert_to_cb(current_datetime))
 
                 binary_query = self.cb.select(CbrBinary).where(query).sort("server_added_timestamp asc")
                 binary_query._batch_size = PAGE_SIZE
@@ -84,25 +90,42 @@ class BinaryCollector(threading.Thread):
                     time.sleep(30)
                     continue
 
-                for binary in binary_query[:PAGE_SIZE]:
-                    if self.terminate:
-                        break
+                PAGE_SIZE = 1
+                start = 0
+                while True:
+                    binaries_added = False
+                    logger.info(start)
+                    logger.info(PAGE_SIZE)
+                    for binary in binary_query[start:PAGE_SIZE]:
+                        if self.terminate:
+                            break
 
-                    exist_query = Binary.select().where(Binary.md5 == binary.md5)
-                    if exist_query.exists():
-                        logger.info("binary already exists in database: {0}".format(binary.md5))
-                        time.sleep(self.sleep_interval)
-                        continue
+                        exist_query = Binary.select().where(Binary.md5 == binary.md5)
+                        if exist_query.exists():
+                            logger.info("binary already exists in database: {0}".format(binary.md5))
+                            time.sleep(self.sleep_interval)
+                            continue
 
-                    try:
-                        bin = Binary()
-                        bin.md5 = binary.md5
-                        bin.server_added_timestamp = binary.server_added_timestamp
-                        bin.save()
-                        time.sleep(self.sleep_interval)
-                    except Exception as e:
-                        logger.error(traceback.format_exc())
+                        try:
+                            bin = Binary()
+                            bin.md5 = binary.md5
+                            bin.server_added_timestamp = binary.server_added_timestamp
+                            bin.save()
+                            time.sleep(self.sleep_interval)
+                            binaries_added = True
+                        except Exception as e:
+                            logger.error(traceback.format_exc())
+                            continue
+
+                    if not binaries_added:
+                        #
+                        # Preventing an non productive loop
+                        # If we added no binaries, we need to extend this query
+                        #
+                        start = PAGE_SIZE
+                        PAGE_SIZE *= 2
                         continue
+                    break
 
                 if self.terminate:
                     break

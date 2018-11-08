@@ -67,8 +67,6 @@ class BinaryDetonation(Integration):
         bc.start()
         self.binary_collector = bc
 
-        cbint.globals.g_integration = self
-
         logger.debug("Binary Collector has started")
 
         self.flask_feed = app
@@ -247,14 +245,20 @@ class BinaryDetonation(Integration):
             bdr.binary_not_available = False
             bdr.save()
 
+            binary = Binary.get(Binary.md5 == result.md5)
+            binary.available = True
             if result.stop_future_scans:
-                binary = Binary.get(Binary.md5 == result.md5)
                 binary.stop_future_scans = True
-                binary.save()
+
+            if binary.force_rescan == True:
+                logger.info("force_rescan reset")
+                binary.force_rescan = False
+
+            binary.save()
 
             cbint.globals.g_statistics.number_binaries_scanned += 1
 
-            logger.info(f'{result.md5} scored at {result.score}')
+            #logger.info(f'{result.md5} scored at {result.score}')
 
             #
             # We want to update the feed if a new reports comes in with score > 0
@@ -278,7 +282,10 @@ class BinaryDetonation(Integration):
 
             bin = Binary.get(Binary.md5 == result.md5)
             bin.stop_future_scans = True
-            bin.force_rescan = False
+            if bdr.force_rescan == True:
+                logger.info("force_rescan reset")
+                bdr.force_rescan = False
+
             bin.save()
 
             cbint.globals.g_statistics.number_failure_detonation += 1
