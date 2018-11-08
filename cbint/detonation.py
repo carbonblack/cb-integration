@@ -240,15 +240,13 @@ class BinaryDetonation(Integration):
 
     def report_successful_detonation(self, result: AnalysisResult):
         try:
-            try:
-                bdr = DetonationResult.get(DetonationResult.md5 == result.md5)
-            except DetonationResult.DoesNotExist:
-                bdr = DetonationResult.create(md5=result.md5)
-            bdr.score = result.score
-            bdr.last_success_msg = result.short_result
-            bdr.last_scan_date = bdr.last_scan_attempt = datetime.now()
-            bdr.binary_not_available = False
-            bdr.save()
+            dr = DetonationResult.create(md5=result.md5)
+            dr.score = result.score
+            dr.success_msg = result.short_result
+            dr.scan_date = datetime.now()
+            dr.binary_not_available = False
+            dr.scanner = result.short_result
+            dr.save()
 
             binary = Binary.get(Binary.md5 == result.md5)
             binary.available = True
@@ -275,15 +273,13 @@ class BinaryDetonation(Integration):
 
     def report_failure_detonation(self, result: AnalysisResult):
         try:
-            try:
-                bdr = DetonationResult.get(DetonationResult.md5 == result.md5)
-            except DetonationResult.DoesNotExist:
-                bdr = DetonationResult.create(md5=result.md5)
+            dr = DetonationResult.create(md5=result.md5)
             logger.info(result)
-            bdr.score = result.score
-            bdr.error_msg = result.last_error_msg
-            bdr.error_date = datetime.now()
-            bdr.save()
+            dr.score = result.score
+            dr.error_msg = result.last_error_msg
+            dr.error_date = datetime.now()
+            dr.scanner = result.short_result
+            dr.save()
 
             bin = Binary.get(Binary.md5 == result.md5)
             bin.stop_future_scans = True

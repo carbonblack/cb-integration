@@ -119,6 +119,8 @@ class BinaryCollector(threading.Thread):
                         #
                         start = PAGE_SIZE
                         PAGE_SIZE += PAGE_SIZE
+                        if PAGE_SIZE > len(binary_query):
+                            PAGE_SIZE = len(binary_query)
                         continue
                     break
 
