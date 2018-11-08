@@ -256,13 +256,9 @@ class BinaryDetonation(Integration):
         bdr.success_msg = result.short_result
         bdr.scan_date = datetime.now()
         bdr.binary_not_available = False
-        #bdr.scan_count += 1
-        #if bdr.force_rescan == True:
-        #   logger.info("rescan was True now set to False")
-        #    bdr.force_rescan = False
         bdr.save()
 
-        cbint.globals.g_statistics.number_binaries_scanned += 1
+        #cbint.globals.g_statistics.number_binaries_scanned += 1
 
         logger.info(f'{result.md5} scored at {result.score}')
 
