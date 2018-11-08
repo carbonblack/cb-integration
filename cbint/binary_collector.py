@@ -90,19 +90,16 @@ class BinaryCollector(threading.Thread):
                     time.sleep(30)
                     continue
 
-                PAGE_SIZE = 1
+                PAGE_SIZE = 1000
                 start = 0
                 while True:
                     binaries_added = False
-                    logger.info(start)
-                    logger.info(PAGE_SIZE)
                     for binary in binary_query[start:PAGE_SIZE]:
                         if self.terminate:
                             break
 
                         exist_query = Binary.select().where(Binary.md5 == binary.md5)
                         if exist_query.exists():
-                            logger.info("binary already exists in database: {0}".format(binary.md5))
                             time.sleep(self.sleep_interval)
                             continue
 
