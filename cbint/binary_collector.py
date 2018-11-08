@@ -63,8 +63,6 @@ class BinaryCollector(threading.Thread):
 
         while True:
             try:
-
-
                 newest_binary_date = self.get_newest_binary_date()
                 if newest_binary_date:
                     current_datetime = parser.parse(newest_binary_date)
@@ -120,7 +118,7 @@ class BinaryCollector(threading.Thread):
                         # If we added no binaries, we need to extend this query
                         #
                         start = PAGE_SIZE
-                        PAGE_SIZE *= 2
+                        PAGE_SIZE += PAGE_SIZE
                         continue
                     break
 

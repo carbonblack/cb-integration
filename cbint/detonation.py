@@ -162,7 +162,12 @@ class BinaryDetonation(Integration):
             yield md5
 
     def binary_insert_queue(self, md5, priority=2):
-        self.binary_queue.put((priority, time.time(), md5), block=True, timeout=None)
+        try:
+            self.binary_queue.put((priority, time.time(), md5), block=False, timeout=None)
+        except queue.Full:
+            pass
+        except Exception as e:
+            logger.debug(traceback.format_exc(str(e)))
 
     def update_global_statistics(self):
         cbint.globals.g_statistics.binaries_in_queue = self.binary_queue.qsize()
