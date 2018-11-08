@@ -3,9 +3,9 @@ import logging
 import threading
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from cbapi.response.models import Binary
+from cbapi.response.models import Binary as CbrBinary
 from cbapi.response.rest_api import CbResponseAPI
 from dateutil import parser
 
@@ -39,70 +39,88 @@ class BinaryCollector(threading.Thread):
                                 ssl_verify=cbint.globals.g_config.getboolean("carbonblack_server_sslverify"))
 
     def get_newest_binary_date(self):
-        results = BinaryDetonationResult().select().order_by(BinaryDetonationResult.server_added_timestamp.desc(),BinaryDetonationResult.from_rabbitmq.desc()).limit(1)
-        if not results:
-            return None
-        else:
-            return results[0].server_added_timestamp
+          results = BinaryDetonationResult().select().order_by(BinaryDetonationResult.server_added_timestamp.desc(),
+                                                                 BinaryDetonationResult.from_rabbitmq.desc()).limit(1)
+          if not results:
+              return None
+          else:
+              return results[0].server_added_timestamp
 
     def get_oldest_binary_date(self):
-        results = BinaryDetonationResult() \
-            .select() \
-            .order_by(BinaryDetonationResult.server_added_timestamp.asc())
-        if not results:
-            return None
-        else:
-            return results[0].server_added_timestamp
+          results = BinaryDetonationResult() \
+               .select() \
+               .order_by(BinaryDetonationResult.server_added_timestamp.asc())
+          if not results:
+               return None
+          else:
+               return results[0].server_added_timestamp
 
     def stop(self):
         self.terminate = True
 
     def collect_oldest_newest_binaries(self):
+        global PAGE_SIZE
+
         while True:
-            #logger.debug("Binary collector collecting binaries")
             try:
+                newest_binary_date = self.get_newest_binary_date()
+                if newest_binary_date:
+                    current_datetime = parser.parse(newest_binary_date)
+                else:
+                    current_datetime = None
                 #
                 # Get the newest binary we have in the sqlite db
                 #
-                newest_binary_date = self.get_newest_binary_date()
-
-                #logger.info("binary_collector newest_binary_date: {0}".format(newest_binary_date))
+                logger.info("binary_collector newest_binary_date: {0}".format(newest_binary_date))
 
                 query = self.query
-                if newest_binary_date:
-                    datetime_object = parser.parse(newest_binary_date)
-                    #datetime_object = newest_binary_date
-                    query += " server_added_timestamp:[{0} TO *]".format(convert_to_cb(datetime_object))
+                if current_datetime:
+                    #
+                    # Keep this for postgres
+                    # datetime_object = newest_binary_date
+                    #
+                    query += " server_added_timestamp:[{0} TO *]".format(convert_to_cb(current_datetime))
 
-
-                binary_query = self.cb.select(Binary).where(query).sort("server_added_timestamp asc")
+                binary_query = self.cb.select(CbrBinary).where(query).sort("server_added_timestamp asc")
                 binary_query._batch_size = PAGE_SIZE
 
                 if len(binary_query) == 0:
                     time.sleep(30)
                     continue
 
-                for binary in binary_query[:PAGE_SIZE]:
-                    if self.terminate:
-                        break
+                PAGE_SIZE = 1000
+                start = 0
+                while True:
+                    binaries_added = False
+                    for binary in binary_query[start:PAGE_SIZE]:
+                        if self.terminate:
+                            break
 
-                    exist_query = BinaryDetonationResult.select().where(BinaryDetonationResult.md5 == binary.md5)
-                    if exist_query.exists():
-                        #logger.info("binary already exists in database")
-                        time.sleep(self.sleep_interval)
-                        continue
+                        exist_query = BinaryDetonationResult.select().where(BinaryDetonationResult.md5 == binary.md5)
+                        if exist_query.exists():
+                            time.sleep(self.sleep_interval)
+                            continue
 
-                    try:
-                        det = BinaryDetonationResult()
-                        det.md5 = binary.md5
-                        det.server_added_timestamp = binary.server_added_timestamp
-                        #logger.info(binary.md5)
-                        # Save into database
-                        det.save()
-                        time.sleep(self.sleep_interval)
-                    except Exception as e:
-                        logger.error(traceback.format_exc())
+                        try:
+                            bin = BinaryDetonationResult()
+                            bin.md5 = binary.md5
+                            bin.server_added_timestamp = binary.server_added_timestamp
+                            bin.save()
+                            time.sleep(self.sleep_interval)
+                            binaries_added = True
+                        except Exception as e:
+                            logger.error(traceback.format_exc())
+                            continue
+
+                    if not binaries_added:
+                        #
+                        # Preventing an non productive loop
+                        # If we added no binaries, we need to extend this query
+                        #
+                        start = PAGE_SIZE
+                        PAGE_SIZE += PAGE_SIZE
                         continue
+                    break
 
                 if self.terminate:
                     break
@@ -114,7 +132,6 @@ class BinaryCollector(threading.Thread):
         while True:
             try:
                 self.collect_oldest_newest_binaries()
-                #self.collect_newest_oldest_binaries()
             except Exception as e:
                 logger.error(traceback.format_exc())
             time.sleep(self.sleep_interval)
