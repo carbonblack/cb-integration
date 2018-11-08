@@ -27,7 +27,6 @@ class Binary(Model):
     force_rescan = BooleanField(default=False)
     misc = CharField(default='')
     available = BooleanField(default=False)
-    done_scanning = BooleanField(default=False)
 
 
 class DetonationResult(Model):

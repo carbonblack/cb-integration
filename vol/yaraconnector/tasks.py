@@ -15,6 +15,7 @@ import datetime
 from cbint.analysis import AnalysisResult
 from cbapi.response.models import Binary
 from cbapi.response.rest_api import CbResponseAPI
+import pprint
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -44,8 +45,9 @@ def analyze_binary(yara_rule_map, md5sum, cb_config):
             yara_rules = yara.compile(filepaths=yara_rule_map)
 
             try:
-                #matches = "debug"
+                # matches = "debug"
                 matches = yara_rules.match(data=binary_data, timeout=30)
+                pprint.pprint(matches)
             except yara.TimeoutError:
                 #
                 # yara timed out
@@ -71,13 +73,11 @@ def analyze_binary(yara_rule_map, md5sum, cb_config):
             else:
                 if matches:
                     for match in matches:
-                        #score = getHighScore(matches)
-                        logger.Debug("MATCH IS" + str(match))
                         analysis_result = AnalysisResult(md5sum)
                         analysis_result.last_scan_date = datetime.datetime.now()
-                        logger.Debug("MATCH.meta is " + str(match.meta))
-                        analysis_result.score = match.meta.get('score')
+                        analysis_result.score = match.meta.get('score', 100)
                         analysis_result.scanner = match.rule
+                        analysis_result.stop_future_scans = True
                         analysis_results.append(analysis_result)
                 else:
                     analysis_result = AnalysisResult(md5sum)

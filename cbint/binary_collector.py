@@ -96,7 +96,6 @@ class BinaryCollector(threading.Thread):
                         bin = Binary()
                         bin.md5 = binary.md5
                         bin.server_added_timestamp = binary.server_added_timestamp
-                        bin.available = True
                         bin.save()
                         time.sleep(self.sleep_interval)
                     except Exception as e:

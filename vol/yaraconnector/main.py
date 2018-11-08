@@ -26,10 +26,10 @@ bd = None
 MAX_SCANS = 4
 
 
-
 # Restrict to a particular path.
 class RequestHandler(SimpleXMLRPCRequestHandler):
     rpc_paths = ('/RPC2',)
+
 
 class YaraObject(threading.Thread):
     def __init__(self, bd):
@@ -71,29 +71,20 @@ class YaraObject(threading.Thread):
 
             logger.error("RESULT READY")
             if result.successful():
-                results = result.get()
-                logger.error("RESULTS ARE:" + str(results))
-                for analysis_result_group in results:
-                    binary_done = True
-                    logger.error("RESULT GROUP IS " + str(analysis_result_group))
-                    for analysis_result in analysis_result_group:
+                scan_group_result_list = result.get()
+                for analysis_result_list in scan_group_result_list:
+                    for analysis_result in analysis_result_list:
                         if analysis_result:
                             if analysis_result.last_error_msg:
+                                logger.info(analysis_result.last_error_msg)
                                 bd.report_failure_detonation(analysis_result)
-                                binary_done = True
                             elif analysis_result.binary_not_available:
                                 bd.report_binary_unavailable(analysis_result)
-                                binary_done = False
                             else:
+                                logger.info(analysis_result.score)
                                 analysis_result.misc = self.yara_rule_map
+                                analysis_result.stop_future_scan = True
                                 bd.report_successful_detonation(analysis_result)
-                                binary_done = True
-                    if binary_done:
-                        bin = Binary().select().where(Binary.md5 == analysis_result_group[0].md5).get()
-                        bin.done_scanning = True
-                        bin.save()
-
-
             else:
                 logger.error(result.traceback())
         except:
@@ -110,16 +101,17 @@ class YaraObject(threading.Thread):
         self.bd.force_rescan_all()
         return True
 
-    def get_result_for(self,hash):
-        if len(DetonationResult.select().where(DetonationResult.md5==hash) > 0):
+    def get_result_for(self, hash):
+        if len(DetonationResult.select().where(DetonationResult.md5 == hash) > 0):
             try:
-                return json.dumps(str(DetonationResult.select().where(DetonationResult.md5 == hash).get().model_to_dict()))
+                return json.dumps(
+                    str(DetonationResult.select().where(DetonationResult.md5 == hash).get().model_to_dict()))
             except BaseException as e:
-                return {"error":str(e)}
+                return {"error": str(e)}
         else:
             return {}
 
-    def executeBinaryQuery(self,query):
+    def executeBinaryQuery(self, query):
         ret = []
         try:
             cursor = self.bd.db_object.execute_sql(query)
@@ -130,10 +122,10 @@ class YaraObject(threading.Thread):
                 if value is None:
                     ret.append(["None"])
         except BaseException as bae:
-            ret.append([str({"error":str(bae),"query":query})])
+            ret.append([str({"error": str(bae), "query": query})])
         return ret if len(ret) > 0 else ["Result set was empty"]
 
-    def check_yara_rules(self,forcerescan=False):
+    def check_yara_rules(self, forcerescan=False):
         new_rule_map = self.generate_rule_map(self.get_yara_rules_directory())
         if self.yara_rule_map != new_rule_map:
             logger.info("Detected a change in yara_rules directory")
@@ -145,9 +137,10 @@ class YaraObject(threading.Thread):
 
     def getStatistics(self):
         bins_in_queue = self.bd.get_binary_queue().qsize()
-        entries_in_db =  Binary().select(fn.COUNT(Binary.md5))
+        entries_in_db = Binary().select(fn.COUNT(Binary.md5))
         scanned_bins = Binary().select(fn.COUNT(Binary.md5)).where(Binary.done_scanning)
-        return {"queue":bins_in_queue,"dbentries":str(json.dumps(entries_in_db.dicts().get())),"scanned":str(json.dumps(scanned_bins.dicts().get()))}
+        return {"queue": bins_in_queue, "dbentries": str(json.dumps(entries_in_db.dicts().get())),
+                "scanned": str(json.dumps(scanned_bins.dicts().get()))}
 
     def getDebugLogs(self):
         return ["file://vol/yaraconnector/yaraconnector.log"]
@@ -167,7 +160,7 @@ class YaraObject(threading.Thread):
     def run(self):
         while (True):
             self.queue_binaries()
-            #self.check_yara_rules()
+            # self.check_yara_rules()
             logger.info(self.bd.binary_queue.qsize())
 
 
@@ -190,9 +183,8 @@ def main():
     # Create server
     try:
         with SimpleXMLRPCServer(('localhost', 9002),
-                            requestHandler=RequestHandler,allow_none=True) as server:
+                                requestHandler=RequestHandler, allow_none=True) as server:
             server.register_introspection_functions()
-
 
             server.register_instance(yara_object)
 
@@ -201,7 +193,6 @@ def main():
 
     finally:
         bd.close()
-
 
 
 if __name__ == '__main__':
