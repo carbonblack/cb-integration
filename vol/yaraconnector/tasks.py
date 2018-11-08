@@ -83,8 +83,8 @@ def analyze_binary(yara_rule_map, md5sum, cb_config):
                         [match.rule for match in matches])
                 else:
                     analysis_result.score = 0
-                    analysis_result.short_result = "No Matches yara rules: %s" % ', '.join(
-                        [match.rule for match in matches])
+                    analysis_result.short_result = "No Matches for yara rules: %s" % ', '.join(
+                        [key for key in yara_rule_map])
 
         return analysis_result
     except:
