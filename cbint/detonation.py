@@ -22,14 +22,12 @@ from cbint.cbfeeds import CbReport, CbFeed
 from cbint.integration import Integration
 from cbint.utils.helpers import report_error_statistics
 from cbint.message_bus import CBAsyncConsumer
-
+from cbint.flask_feed import app
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 BINARY_QUEUE_MAX_SIZE = 200
-
-
 
 
 class BinaryDetonation(Integration):
@@ -68,7 +66,6 @@ class BinaryDetonation(Integration):
         self.binary_collector = bc
         logger.debug("Binary Collector has started")
 
-        '''
         self.flask_feed = app
         self.flask_thread = threading.Thread(target=self.flask_feed.run,
                                              kwargs={"host": "127.0.0.1",
@@ -78,9 +75,6 @@ class BinaryDetonation(Integration):
 
         self.flask_thread.daemon = True
         self.flask_thread.start()
-        '''
-
-
 
         self.db_inserter_thread = threading.Thread(target=self.insert_binaries_from_db)
         self.db_inserter_thread.daemon = True
@@ -96,25 +90,26 @@ class BinaryDetonation(Integration):
                     msg = json.loads(message)
                     det.md5 = msg.get("md5")
                     det.from_rabbitmq = True
-                    det.server_added_timestamp = datetime.fromtimestamp(msg.get("event_timestamp")).isoformat()#datetime.fromtimestamp(msg.get("event_timestamp"))
+                    #det.server_added_timestamp = datetime.fromtimestamp(
+                    #    msg.get("event_timestamp")).isoformat()  # datetime.fromtimestamp(msg.get("event_timestamp"))
                     #
                     # Save into database
                     #
                     det.save()
-                    #self.binary_insert_queue(det.md5, 1)
+                    self.binary_insert_queue(det.md5, 1)
                 except Exception as e:
                     logger.debug("Exception in async consumer....")
                     logger.debug(e)
 
         self.cbasyncconsumer = CBAsyncConsumer(amqp_url=amqp_url,
-                                   exchange='api.events',
-                                   queue='binarystore',
-                                   routing_key='binarystore.file.added',
-                                   exchange_type='topic',
-                                   exchange_durable=True,
-                                   arguments={'x-max-length': 10000},
-                                   worker=submit_binary_to_db_and_queue
-                                   )
+                                               exchange='api.events',
+                                               queue='binarystore',
+                                               routing_key='binarystore.file.added',
+                                               exchange_type='topic',
+                                               exchange_durable=True,
+                                               arguments={'x-max-length': 10000},
+                                               worker=submit_binary_to_db_and_queue
+                                               )
 
         logger.debug("Starting async consumer")
         self.asyncconsumer_thread = threading.Thread(target=self.cbasyncconsumer.run)
@@ -174,36 +169,31 @@ class BinaryDetonation(Integration):
             while True:
                 self.update_global_statistics()
                 try:
-                    #logger.info("start normal")
-                    # query = Tweet.select(Tweet.content, User.username).join(User)
-                    # cursor = database.execute(query)
+
                     query = BinaryDetonationResult.select() \
-                            .where((BinaryDetonationResult.binary_not_available.is_null()) | \
-                                   (BinaryDetonationResult.last_scan_date.is_null()) | \
-                                   (BinaryDetonationResult.force_rescan == True)) \
-                            .order_by(BinaryDetonationResult.server_added_timestamp.desc(),BinaryDetonationResult.from_rabbitmq.asc()) \
-                            .limit(500)
+                        .where((BinaryDetonationResult.binary_not_available.is_null()) | \
+                               (BinaryDetonationResult.last_scan_date.is_null()) | \
+                               (BinaryDetonationResult.force_rescan == True)) \
+                        .order_by(BinaryDetonationResult.server_added_timestamp.desc(),
+                                  BinaryDetonationResult.from_rabbitmq.asc()) \
+                        .limit(500)
+
                     cursor = db.execute(query)
+
                     for item in cursor:
-                        #logger.info(item[1])
-                        #logger.info("start normal1")
                         md5 = item[1]
                         self.binary_insert_queue(md5)
-                        #logger.info("start normal2")
                         self.update_global_statistics()
 
                     #
                     # Next attempt to rescan binaries that needed to be downloaded by alliance
                     #
-                    # logger.info("start alliance")
                     for detonation in BinaryDetonationResult.select() \
                             .where((BinaryDetonationResult.binary_not_available == True) & \
                                    (BinaryDetonationResult.last_scan_attempt < datetime.today() - timedelta(days=1))) \
                             .order_by(BinaryDetonationResult.last_scan_attempt.asc()) \
                             .limit(100):
-                        # logger.info("start alliance1")
-                        self.binary_insert_queue(detonation)
-                        # logger.info("start alliance3")
+                        self.binary_insert_queue(detonation.md5)
                         self.update_global_statistics()
                 except Exception as e:
                     logger.error(traceback.format_exc())
@@ -215,7 +205,7 @@ class BinaryDetonation(Integration):
             time.sleep(30)
 
     def force_rescan_all(self):
-        logger.info("force rescan on all present binaries")
+        logger.info("Forcing rescan on all present binaries")
         query = BinaryDetonationResult.update(force_rescan=True).where(BinaryDetonationResult.scan_count > 0)
         query.execute()
 
@@ -239,10 +229,10 @@ class BinaryDetonation(Integration):
             self.reports.append(CbReport(**fields))
             self.feed = CbFeed(self.feedinfo, self.reports)
 
-        with open(os.path.join("/vol", self.name,"feed", "feed.json"), 'w') as fp:
+        with open(os.path.join("/vol", self.name, "feed", "feed.json"), 'w') as fp:
             fp.write(self.feed.dump())
 
-    def get_feed_dump(self,generate_new_feed=True):
+    def get_feed_dump(self, generate_new_feed=True):
         if self.feed is not None:
             return self.feed.dump()
         else:
@@ -268,7 +258,7 @@ class BinaryDetonation(Integration):
 
         cbint.globals.g_statistics.number_binaries_scanned += 1
 
-        logger.info(f'{result.md5} scored at {result.score}')
+        # logger.info(f'{result.md5} scored at {result.score}')
 
         #
         # We want to update the feed if a new reports comes in with score > 0
@@ -298,9 +288,6 @@ class BinaryDetonation(Integration):
         bdr.save()
         cbint.globals.g_statistics.binaries_not_local += 1
 
-    #cleanup
+    # cleanup
     def close(self):
         self.db_object.close()
-
-
-
