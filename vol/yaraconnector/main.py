@@ -14,7 +14,8 @@ import cbint.globals
 import xmlrpc.server
 from xmlrpc.server import SimpleXMLRPCServer
 from xmlrpc.server import SimpleXMLRPCRequestHandler
-from cbint.detonation import BinaryDetonation, BinaryDetonationResult
+from cbint.binary_database import BinaryDetonationResult
+from cbint.detonation import BinaryDetonation
 from peewee import fn
 
 logger = logging.getLogger(__name__)
@@ -102,7 +103,6 @@ class YaraObject(threading.Thread):
                 return {"error":str(e)}
         else:
             return {}
-
     def executeBinaryQuery(self,query):
         ret = []
         try:
@@ -129,9 +129,9 @@ class YaraObject(threading.Thread):
 
     def getStatistics(self):
         bins_in_queue = self.bd.get_binary_queue().qsize()
-        entries_in_db =  BinaryDetonationResult().select(fn.COUNT(BinaryDetonationResult.md5))
+        entries_in_db =  len(BinaryDetonationResult().select())
         scanned_bins = BinaryDetonationResult().select(fn.COUNT(BinaryDetonationResult.md5)).where(BinaryDetonationResult.last_scan_date)
-        return {"queue":bins_in_queue,"dbentries":str(json.dumps(entries_in_db.dicts().get())),"scanned":str(json.dumps(scanned_bins.dicts().get()))}
+        return {"queue":bins_in_queue,"dbentries":str(entries_in_db),"scanned":str(json.dumps(scanned_bins.dicts().get()))}
 
     def getDebugLogs(self):
         return ["file://vol/yaraconnector/yaraconnector.log"]
@@ -152,7 +152,7 @@ class YaraObject(threading.Thread):
         while (True):
             self.queue_binaries()
             #self.check_yara_rules()
-            logger.info(self.bd.binary_queue.qsize())
+            #logger.info(self.bd.binary_queue.qsize())
 
 
 def main():
@@ -170,22 +170,18 @@ def main():
                      display_name="Yara")
 
     yara_object.start()
+    server = SimpleXMLRPCServer(('0.0.0.0', 9002),
+                            requestHandler=RequestHandler)
+    server.register_introspection_functions()
+    server.register_instance(yara_object)
 
-    # Create server
     try:
-        with SimpleXMLRPCServer(('localhost', 9002),
-                            requestHandler=RequestHandler,allow_none=True) as server:
-            server.register_introspection_functions()
-
-
-            server.register_instance(yara_object)
-
             # Run the server's main loop
-            server.serve_forever()
-
+        server.serve_forever()
+    except BaseException as bae:
+        logger.debug("Yara eror {}".format(str(e)))
     finally:
         bd.close()
-
 
 
 if __name__ == '__main__':

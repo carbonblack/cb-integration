@@ -7,7 +7,7 @@ class CbFeedInterface:
 
     def __init__(self, supervisord):
         self.supervisord = supervisord
-        self.clientToDaemon = xmlrpc.client.ServerProxy('http://localhost:9002')
+        self.clientToDaemon = xmlrpc.client.ServerProxy('http://127.0.0.1:9002')
 
     def listAllMethods(self):
         return self.clientToDaemon.system.listMethods()
