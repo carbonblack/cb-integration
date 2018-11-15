@@ -13,7 +13,7 @@ class CbFeedInterface:
         return self.clientToDaemon.system.listMethods()
 
     def forceRescanAll(self):
-        self.clientToDaemon.forceRescanAll()
+        self.clientToDaemon.force_rescan_all()
         return True
 
     def getResultFor(self,md5):
@@ -28,23 +28,15 @@ class CbFeedInterface:
     def getStatistics(self):
         return self.clientToDaemon.getStatistics()
 
-    def getYaraRulesDirectory(self):
-        return self.clientToDaemon.get_yara_rules_directory()
-
-    def getDebugLogs(self):
-        return self.clientToDaemon.getDebugLogs()
-
-    def getFeed(self):
-        return self.clientToDaemon.getFeed()
-
     def getFeedDump(self):
-        return self.clientToDaemon.getFeedDump()
+        feed_dump =  self.clientToDaemon.get_feed_dump()
+        return feed_dump.get('reports',["NO REPORTS YET"])
 
     def getBinaryQueue(self):
         return self.clientToDaemon.getBinaryQueue()
 
-    def uploadYaraRule(self):
-        return True
+    #def uploadYaraRule(self):
+    #    return True
 
 
 def make_custom_rpcinterface(supervisord):

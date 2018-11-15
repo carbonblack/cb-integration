@@ -23,6 +23,7 @@ from cbint.integration import Integration
 from cbint.utils.helpers import report_error_statistics
 from cbint.message_bus import CBAsyncConsumer
 from cbint.flask_feed import app
+from peewee import fn,SQL
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -243,6 +244,49 @@ class BinaryDetonation(Integration):
                 return str(self.feedinfo)
             else:
                 return "No Feed generated yet"
+
+    def executeBinaryQuery(self,query):
+        ret = []
+        try:
+            cursor = self.db_object.execute_sql(query)
+            for value in cursor:
+                logger.info(str(value))
+                if value is not None:
+                    ret.append([str(x) for x in value])
+                if value is None:
+                    ret.append(["None"])
+        except BaseException as bae:
+            ret.append([str({"error":str(bae),"query":query})])
+        return ret if len(ret) > 0 else ["Result set was empty"]
+
+    def get_result_for(self, hash):
+        if len(BinaryDetonationResult.select().where(BinaryDetonationResult.md5 == hash) > 0):
+            try:
+                return json.dumps(str(
+                    BinaryDetonationResult.select().where(BinaryDetonationResult.md5 == hash).get().model_to_dict()))
+            except BaseException as e:
+                return {"error": str(e)}
+        else:
+            return {}
+
+    def getStatistics(self):
+        bins_in_queue = self.get_binary_queue().qsize()
+        entries_in_db =  len(BinaryDetonationResult().select())
+        scanned_bins = BinaryDetonationResult().select(fn.COUNT(BinaryDetonationResult.md5)).where(BinaryDetonationResult.last_scan_date)
+        rates = BinaryDetonationResult().select(fn.COUNT(BinaryDetonationResult.md5).alias('rate')).where(BinaryDetonationResult.last_scan_date).group_by(fn.date_trunc('minute',BinaryDetonationResult.last_scan_date)).order_by(SQL('rate')).dicts()
+        therate = 0.0
+        sum_rates = 0.0
+        count = 0
+        minrate = -1
+        maxrate = 0
+        for rate in rates:
+            therate = rate
+            sum_rates += rate
+            minrate = therate if therate < minrate else (minrate if minrate is not -1 else therate)
+            maxrate = therate if therate >= maxrate else therate
+            count += 1
+        avgrate = sum_rates / count if count > 0 else 1
+        return {"queue":bins_in_queue,"dbentries":str(entries_in_db),"max 1min rate":str(maxrate),"avg 1min rate":str(avgrate),"scanned":str(json.dumps(scanned_bins.dicts().get()))}
 
     def report_successful_detonation(self, result: AnalysisResult):
         bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)

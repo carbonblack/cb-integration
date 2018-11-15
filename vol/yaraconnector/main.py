@@ -21,7 +21,6 @@ from peewee import fn
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-bd = None
 
 MAX_SCANS = 4
 
@@ -31,10 +30,9 @@ MAX_SCANS = 4
 class RequestHandler(SimpleXMLRPCRequestHandler):
     rpc_paths = ('/RPC2',)
 
-class YaraObject(threading.Thread):
-    def __init__(self, bd):
-        super().__init__()
-        self.bd = bd
+class YaraObject(BinaryDetonation):
+    def __init__(self, name ):
+        super().__init__(name)
         self.yara_rule_map = self.generate_rule_map(self.get_yara_rules_directory())
 
     def generate_rule_map(self, pathname):
@@ -59,7 +57,7 @@ class YaraObject(threading.Thread):
         try:
             scan_group = list()
             for i in range(MAX_SCANS):
-                binary = next(bd.binaries_to_scan())
+                binary = next(self.binaries_to_scan())
                 md5 = binary[2]
                 scan_group.append(analyze_binary.s(self.yara_rule_map, md5, cbint.globals.g_config))
             job = group(scan_group)
@@ -73,12 +71,12 @@ class YaraObject(threading.Thread):
                 for analysis_result in result.get():
                     if analysis_result:
                         if analysis_result.last_error_msg:
-                            bd.report_failure_detonation(analysis_result)
+                            self.report_failure_detonation(analysis_result)
                         elif analysis_result.binary_not_available:
-                            bd.report_binary_unavailable(analysis_result)
+                            self.report_binary_unavailable(analysis_result)
                         else:
                             analysis_result.misc = self.yara_rule_map
-                            bd.report_successful_detonation(analysis_result)
+                            self.report_successful_detonation(analysis_result)
             else:
                 logger.error(result.traceback())
         except:
@@ -91,78 +89,34 @@ class YaraObject(threading.Thread):
     def get_yara_rules(self):
         return self.yara_rule_map
 
-    def forceRescanAll(self):
-        self.bd.force_rescan_all()
-        return True
-
-    def get_result_for(self,hash):
-        if len(BinaryDetonationResult.select().where(BinaryDetonationResult.md5==hash) > 0):
-            try:
-                return json.dumps(str(BinaryDetonationResult.select().where(BinaryDetonationResult.md5 == hash).get().model_to_dict()))
-            except BaseException as e:
-                return {"error":str(e)}
-        else:
-            return {}
-    def executeBinaryQuery(self,query):
-        ret = []
-        try:
-            cursor = self.bd.db_object.execute_sql(query)
-            for value in cursor:
-                logger.info(str(value))
-                if value is not None:
-                    ret.append([str(x) for x in value])
-                if value is None:
-                    ret.append(["None"])
-        except BaseException as bae:
-            ret.append([str({"error":str(bae),"query":query})])
-        return ret if len(ret) > 0 else ["Result set was empty"]
-
     def check_yara_rules(self,forcerescan=False):
         new_rule_map = self.generate_rule_map(self.get_yara_rules_directory())
         if self.yara_rule_map != new_rule_map:
             logger.info("Detected a change in yara_rules directory")
             if forcerescan:
                 logger.info("Rescanning after change in yara_rules directory...")
-                self.bd.force_rescan_all()
+                self.force_rescan_all()
             self.yara_rule_map = new_rule_map
             logger.info(new_rule_map)
 
-    def getStatistics(self):
-        bins_in_queue = self.bd.get_binary_queue().qsize()
-        entries_in_db =  len(BinaryDetonationResult().select())
-        scanned_bins = BinaryDetonationResult().select(fn.COUNT(BinaryDetonationResult.md5)).where(BinaryDetonationResult.last_scan_date)
-        return {"queue":bins_in_queue,"dbentries":str(entries_in_db),"scanned":str(json.dumps(scanned_bins.dicts().get()))}
-
-    def getDebugLogs(self):
-        return ["file://vol/yaraconnector/yaraconnector.log"]
-
-    def getFeed(self):
-        return ['file://vol/feeds/yaraconnector/feed.json']
-
-    def getBinaryQueue(self):
-        return [str(s) for s in self.bd.get_binary_queue().queue]
-
-    def getFeedDump(self):
-        try:
-            return self.bd.get_feed_dump()
-        except BaseException as bae:
-            return str(bae)
+    def start(self):
+        self.worker_thread = threading.Thread(target=self.run)
+        self.worker_thread.start()
 
     def run(self):
         while (True):
             self.queue_binaries()
-            #self.check_yara_rules()
-            #logger.info(self.bd.binary_queue.qsize())
+
+    def stop(self):
+        self.worker_thread.join()
+        self.close() #close db
 
 
 def main():
-    global bd
 
-    bd = BinaryDetonation(name="yaraconnector")
+    yara_object = YaraObject("yaraconnector")
 
-    yara_object = YaraObject(bd)
-
-    bd.set_feed_info(name="Yara",
+    yara_object.set_feed_info(name="Yara",
                      summary="Scan binaries collected by Carbon Black with Yara.",
                      tech_data="There are no requirements to share any data with Carbon Black to use this feed.",
                      provider_url="http://plusvic.github.io/yara/",
@@ -170,6 +124,7 @@ def main():
                      display_name="Yara")
 
     yara_object.start()
+    #rpc interface to the rpcinterface in cbrprcinterface.py
     server = SimpleXMLRPCServer(('0.0.0.0', 9002),
                             requestHandler=RequestHandler)
     server.register_introspection_functions()
@@ -181,7 +136,7 @@ def main():
     except BaseException as bae:
         logger.debug("Yara eror {}".format(str(e)))
     finally:
-        bd.close()
+        yara_object.stop()
 
 
 if __name__ == '__main__':
