@@ -28,7 +28,7 @@ from peewee import fn,SQL
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-BINARY_QUEUE_MAX_SIZE = 200
+BINARY_QUEUE_MAX_SIZE = 2000
 
 
 class BinaryDetonation(Integration):
@@ -166,25 +166,36 @@ class BinaryDetonation(Integration):
         """
         :return:
         """
+        just_inserted_server_added_timestamp = None
         try:
             while True:
                 self.update_global_statistics()
                 try:
 
-                    query = BinaryDetonationResult.select() \
-                        .where((BinaryDetonationResult.binary_not_available.is_null()) | \
-                               (BinaryDetonationResult.last_scan_date.is_null()) | \
-                               (BinaryDetonationResult.force_rescan == True)) \
-                        .order_by(BinaryDetonationResult.server_added_timestamp.desc(),
-                                  BinaryDetonationResult.from_rabbitmq.asc()) \
-                        .limit(500)
+                    # Get the first 500 binaries after the newest one we just inserted
+                    if just_inserted_server_added_timestamp is None:
+                        query = BinaryDetonationResult.select(BinaryDetonationResult.md5,BinaryDetonationResult.server_added_timestamp) \
+                            .where((BinaryDetonationResult.binary_not_available.is_null()) | \
+                                   (BinaryDetonationResult.last_scan_date.is_null()) | \
+                                   (BinaryDetonationResult.force_rescan == True)) \
+                            .order_by(BinaryDetonationResult.server_added_timestamp.asc()).limit(500)
+                    else:
+                        query = BinaryDetonationResult.select(BinaryDetonationResult.md5,BinaryDetonationResult.server_added_timestamp) \
+                            .where(((BinaryDetonationResult.binary_not_available.is_null()) | \
+                                   (BinaryDetonationResult.last_scan_date.is_null()) | \
+                                   (BinaryDetonationResult.force_rescan == True)) & \
+                                   (BinaryDetonationResult.server_added_timestamp >= just_inserted_server_added_timestamp)) \
+                            .order_by(BinaryDetonationResult.server_added_timestamp.asc()).limit(500)
 
                     cursor = db.execute(query)
 
+                    added_timestamp=None
                     for item in cursor:
-                        md5 = item[1]
+                        md5 = item[0]
+                        added_timestamp = item[1]
                         self.binary_insert_queue(md5)
                         self.update_global_statistics()
+                    just_inserted_server_added_timestamp = added_timestamp
 
                     #
                     # Next attempt to rescan binaries that needed to be downloaded by alliance
@@ -192,8 +203,7 @@ class BinaryDetonation(Integration):
                     for detonation in BinaryDetonationResult.select() \
                             .where((BinaryDetonationResult.binary_not_available == True) & \
                                    (BinaryDetonationResult.last_scan_attempt < datetime.today() - timedelta(days=1))) \
-                            .order_by(BinaryDetonationResult.last_scan_attempt.asc()) \
-                            .limit(100):
+                            .order_by(BinaryDetonationResult.last_scan_attempt.asc()):
                         self.binary_insert_queue(detonation.md5)
                         self.update_global_statistics()
                 except Exception as e:
@@ -235,15 +245,15 @@ class BinaryDetonation(Integration):
 
     def get_feed_dump(self, generate_new_feed=True):
         if self.feed is not None:
-            return self.feed.dump()
+            return self.feed.dumpjson()
         else:
             if generate_new_feed:
                 self.generate_feed_from_db()
                 if self.feed is not None:
-                    return self.feed.dump()
-                return str(self.feedinfo)
+                    return self.feed.dumpjson()
+                return self.feedinfo
             else:
-                return "No Feed generated yet"
+                return {}
 
     def executeBinaryQuery(self,query):
         ret = []
@@ -280,13 +290,13 @@ class BinaryDetonation(Integration):
         minrate = -1
         maxrate = 0
         for rate in rates:
-            therate = rate
-            sum_rates += rate
+            therate = rate['rate']
+            sum_rates += therate
             minrate = therate if therate < minrate else (minrate if minrate is not -1 else therate)
             maxrate = therate if therate >= maxrate else therate
             count += 1
         avgrate = sum_rates / count if count > 0 else 1
-        return {"queue":bins_in_queue,"dbentries":str(entries_in_db),"max 1min rate":str(maxrate),"avg 1min rate":str(avgrate),"scanned":str(json.dumps(scanned_bins.dicts().get()))}
+        return {"dbentries":str(entries_in_db),"Maximum 1 minute scanning rate":str(maxrate),"Average 1 minute scanning rate":str(avgrate),"scanned":str(json.dumps(scanned_bins.dicts().get()))}
 
     def report_successful_detonation(self, result: AnalysisResult):
         bdr = BinaryDetonationResult.get(BinaryDetonationResult.md5 == result.md5)

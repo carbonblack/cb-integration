@@ -4,7 +4,7 @@ Jinja2
 peewee
 pika
 PyYAML
-redis
+redis==2.10.6
 requests
 yara-python
 psycopg2

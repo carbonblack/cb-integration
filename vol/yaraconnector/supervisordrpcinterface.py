@@ -13,27 +13,45 @@ class CbFeedInterface:
         return self.clientToDaemon.system.listMethods()
 
     def forceRescanAll(self):
-        self.clientToDaemon.force_rescan_all()
-        return True
+        try:
+            self.clientToDaemon.force_rescan_all()
+            return True
+        except Exception as e:
+            return False
 
     def getResultFor(self,md5):
-        return self.clientToDaemon.get_result_for(md5)
+        try:
+            return self.clientToDaemon.get_result_for(md5)
+        except Exception as e:
+            return {"error":str(e)}
 
     def executeBinaryQuery(self,query):
-        return self.clientToDaemon.executeBinaryQuery(query)
+        try:
+            return self.clientToDaemon.executeBinaryQuery(query)
+        except Exception as e:
+            return {"error":str(e)}
 
     def listYaraRules(self):
         return self.clientToDaemon.get_yara_rules()
 
     def getStatistics(self):
-        return self.clientToDaemon.getStatistics()
+        try:
+            return self.clientToDaemon.getStatistics()
+        except Exception as e:
+            return {"error":str(e)}
 
     def getFeedDump(self):
-        feed_dump =  self.clientToDaemon.get_feed_dump()
-        return feed_dump.get('reports',["NO REPORTS YET"])
+        try:
+            feed_dump =  self.clientToDaemon.get_feed_dump()
+            return feed_dump.get('reports',['No reports yet'])
+        except Exception as e:
+             return [{"error":str(e)}]
 
     def getBinaryQueue(self):
-        return self.clientToDaemon.getBinaryQueue()
+        try:
+            return self.clientToDaemon.getBinaryQueue()
+        except Exception as e:
+            return {"error":str(e)}
 
     #def uploadYaraRule(self):
     #    return True

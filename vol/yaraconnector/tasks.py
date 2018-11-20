@@ -1,4 +1,4 @@
-from celery import Celery
+from celery import Celery,Task
 
 app = Celery('yaraconnector', backend='redis://localhost', broker='redis://localhost')
 app.conf.task_serializer = "pickle"
@@ -15,24 +15,43 @@ import datetime
 from cbint.analysis import AnalysisResult
 from cbapi.response.models import Binary
 from cbapi.response.rest_api import CbResponseAPI
+import configparser
+#TODO REMOVE USE OF GLOBALS TO SHARE INFO BETWEEN CONTEXTS
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+cfg_parser = configparser.ConfigParser()
+cfg_parser.read("yaraconnector.conf")
+GlobalConfig = cfg_parser['general']
 
-@app.task
-def analyze_binary(yara_rule_map, md5sum, cb_config):
-    logger.debug("{}: in analyze_binary".format(md5sum))
+
+class CbAPITask(Task):
+    _cb = None
+
+    @property
+    def cb(self):
+        global GlobalConfig
+        if self._cb is None:
+            try:
+                self._cb = CbResponseAPI(url=GlobalConfig.get("carbonblack_server_url"),
+                           token=GlobalConfig.get("carbonblack_server_token"),
+                           ssl_verify=GlobalConfig.getboolean("carbonblack_server_sslverify"))
+            except Exception as e:
+                self._cb = None
+        return self._cb
+
+
+@app.task(base=CbAPITask)
+def analyze_binary(yara_rule_map, md5sum,cb_config):
+    logger.debug("{0}: in analyze_binary cbint with ".format(md5sum))
 
     try:
         analysis_result = AnalysisResult(md5sum)
         analysis_result.last_scan_date = datetime.datetime.now()
 
-        cb = CbResponseAPI(url=cb_config.get("carbonblack_server_url"),
-                           token=cb_config.get("carbonblack_server_token"),
-                           ssl_verify=cb_config.getboolean("carbonblack_server_sslverify"))
 
-        binary_query = cb.select(Binary).where(f"md5:{md5sum}")
+        binary_query = analyze_binary.cb.select(Binary).where(f"md5:{md5sum}")
 
         if binary_query:
             try:

@@ -33,6 +33,17 @@ class CbFeed(object):
 
         return json.dumps(self.data, cls=CbJSONEncoder, indent=2)
 
+    def dumpjson(self, validate=True):
+        '''
+        dumps the feed data
+        :param validate: is set, validates feed before dumping
+        :return: json string of feed data
+        '''
+        if validate:
+            self.validate()
+
+        return self.data
+
     def __repr__(self):
         return repr(self.data)
 
