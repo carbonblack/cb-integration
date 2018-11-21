@@ -115,7 +115,7 @@ class ConnectorMenu extends Component {
         var modalcontent;
         if (rpcreturntype === 'string' || rpcreturntype === 'number') {
             modalcontent = (<div>{String(rpcreturn)}</div>);
-        } else if (rpcreturn.constructor === Object){
+        } else if (rpcreturn.constructor === Object) {
                 modalcontent = (<Table fluid striped><Table.Body>
                                     {_.map(rpcreturn, (value,key) => (
                                     <Table.Row> <Table.Cell > {key}:{value}</Table.Cell ></Table.Row>))}
@@ -123,7 +123,7 @@ class ConnectorMenu extends Component {
         } else if (rpcreturn != "" ) {
                  modalcontent = (<Table fluid striped><Table.Body>
                                     {_.map(rpcreturn, (row) => (
-                                    <Table.Row> <Table.Cell >{row}</Table.Cell ></Table.Row>))}
+                                    <Table.Row> <Table.Cell >{String(row)}</Table.Cell ></Table.Row>))}
                                 </Table.Body></Table>);
         }
         else {

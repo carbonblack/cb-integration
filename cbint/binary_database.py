@@ -18,7 +18,7 @@ db = SqliteQueueDatabase(None, autostart=False)
 
 
 class BinaryDetonationResult(Model):
-    md5 = CharField(index=True)
+    md5 = CharField(index=True,unique=True)
     last_scan_date = DateTimeField(index=True, null=True)
     last_success_msg = CharField(default='', null=True)
 

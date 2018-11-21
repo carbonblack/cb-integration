@@ -89,7 +89,8 @@ class BinaryCollector(threading.Thread):
                 #prepare data for blunk async insertion
                 data = ((bin.md5,bin.server_added_timestamp) for bin in binary_query)
                 for chunk in chunked(data,999):
-                    BinaryDetonationResult.insert_many(chunk,fields=[BinaryDetonationResult.md5,BinaryDetonationResult.server_added_timestamp]).execute()
+                    query = BinaryDetonationResult.insert_many(chunk,fields=[BinaryDetonationResult.md5,BinaryDetonationResult.server_added_timestamp]).on_conflict_ignore()
+                    query.execute()
                 current_datetime = parser.parse(binary_query[-1].server_added_timestamp)
                 if self.terminate:
                     break

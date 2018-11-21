@@ -42,7 +42,7 @@ class CbFeed(object):
         if validate:
             self.validate()
 
-        return self.data
+        return json.loads(self.dump(validate))
 
     def __repr__(self):
         return repr(self.data)

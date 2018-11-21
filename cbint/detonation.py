@@ -203,7 +203,7 @@ class BinaryDetonation(Integration):
                     for detonation in BinaryDetonationResult.select() \
                             .where((BinaryDetonationResult.binary_not_available == True) & \
                                    (BinaryDetonationResult.last_scan_attempt < datetime.today() - timedelta(days=1))) \
-                            .order_by(BinaryDetonationResult.last_scan_attempt.asc()):
+                            .order_by(BinaryDetonationResult.last_scan_attempt.asc()).limit(100):
                         self.binary_insert_queue(detonation.md5)
                         self.update_global_statistics()
                 except Exception as e:

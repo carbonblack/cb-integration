@@ -43,9 +43,15 @@ class CbFeedInterface:
     def getFeedDump(self):
         try:
             feed_dump =  self.clientToDaemon.get_feed_dump()
-            return feed_dump.get('reports',['No reports yet'])
+            reports = feed_dump.get('reports',{})
+            ret = {}
+            for report in reports:
+                for hash in report['iocs']['md5']:
+                    ret[hash]=report['score']
+            return ret
+
         except Exception as e:
-             return [{"error":str(e)}]
+             return {"error":str(e)}
 
     def getBinaryQueue(self):
         try:
