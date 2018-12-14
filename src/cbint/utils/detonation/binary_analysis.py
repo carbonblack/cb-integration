@@ -173,12 +173,15 @@ class AnalysisTemporaryError(Exception):
 
 
 class AnalysisResult(object):
-    def __init__(self, message="", extended_message="", analysis_version=1, score=0, link=None):
+    def __init__(self, title="", description="", message="", extended_message="", analysis_version=1, score=0,
+                 link=None):
         self.score = score
         self.message = message
         self.extended_message = extended_message
         self.analysis_version = analysis_version
         self.link = link
+        self.title = title
+        self.description = description
 
 
 class AnalysisInProgress(object):
@@ -221,8 +224,14 @@ class BinaryConsumerThread(threading.Thread):
         self.done = True
 
     def save_successful_analysis(self, md5sum, analysis_result):
-        self.database_arbiter.mark_as_analyzed(md5sum, True, analysis_result.analysis_version, analysis_result.message,
-                                               analysis_result.extended_message, score=analysis_result.score,
+        self.database_arbiter.mark_as_analyzed(md5sum,
+                                               True,
+                                               analysis_result.analysis_version,
+                                               analysis_result.message,
+                                               analysis_result.extended_message,
+                                               score=analysis_result.score,
+                                               title=analysis_result.title,
+                                               description=analysis_result.description,
                                                link=analysis_result.link)
         log.info("Analyzed md5sum: %s - score %d%s. Refreshing feed." % (md5sum, analysis_result.score,
                                                                          " (%s)" % analysis_result.message if analysis_result.message else ""))
@@ -231,7 +240,11 @@ class BinaryConsumerThread(threading.Thread):
     def save_unsuccessful_analysis(self, md5sum, e):
         if type(e) == AnalysisTemporaryError:
             retry_in_seconds = int(e.retry_in)
-            self.database_arbiter.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message,
+            self.database_arbiter.mark_as_analyzed(md5sum,
+                                                   False,
+                                                   e.analysis_version,
+                                                   e.message,
+                                                   e.extended_message,
                                                    retry_at=datetime.datetime.utcnow() + datetime.timedelta(
                                                        seconds=retry_in_seconds))
             log.error("Temporary error analyzing md5sum %s: %s (%s). Will retry in %d seconds." % (md5sum,
@@ -239,13 +252,23 @@ class BinaryConsumerThread(threading.Thread):
                                                                                                    e.extended_message,
                                                                                                    retry_in_seconds))
         elif type(e) == AnalysisPermanentError:
-            self.database_arbiter.mark_as_analyzed(md5sum, False, e.analysis_version, e.message, e.extended_message)
+            self.database_arbiter.mark_as_analyzed(md5sum,
+                                                   False,
+                                                   e.analysis_version,
+                                                   e.message,
+                                                   e.extended_message)
             log.error("Permanent error analyzing md5sum %s: %s (%s)." % (md5sum,
                                                                          e.message,
                                                                          e.extended_message))
         else:
-            self.database_arbiter.mark_as_analyzed(md5sum, False, 0, "%s: %s" % (e.__class__.__name__, e.message),
-                                                   "%s" % traceback.format_exc())
+            self.database_arbiter.mark_as_analyzed(md5sum,
+                                                   False,
+                                                   0,
+                                                   "%s: %s" % (e.__class__.__name__, e.message),
+                                                   "%s" % traceback.format_exc(),
+                                                   title=e.title,
+                                                   description=e.description,
+                                                   )
             log.error("Unknown error analyzing md5sum %s: %s (%s)." % (md5sum,
                                                                        e.__class__.__name__,
                                                                        e.message))

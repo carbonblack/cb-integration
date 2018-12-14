@@ -146,6 +146,8 @@ class SqliteQueue(object):
   -- results
   short_result           TEXT,            -- this can be an error if the state is an error state
   detailed_result        TEXT,            -- we convert to HTML before storing in here
+  title                  TEXT,
+  description            TEXT,
   score                  INTEGER,
   iocs                   TEXT,            -- this is just a dump of JSON data
   provider_data          TEXT,            -- this is arbitrary data from the provider
@@ -189,7 +191,8 @@ class SqliteQueue(object):
     _update_binary_availability = ('UPDATE binary_data SET last_modified = ?,binary_available_since = ?,'
                                    'next_attempt_at = NULL WHERE md5sum = ?')
     _update_binary_state = ('UPDATE binary_data SET last_modified = ?,next_attempt_at = ?,short_result = ?,'
-                            'detailed_result = ?,score = ?,state = ?,analysis_version = ?,link = ?,iocs = ? '
+                            'detailed_result = ?,score = ?,state = ?,analysis_version = ?,link = ?,iocs = ?,'
+                            'title = ?, description = ?'
                             'WHERE md5sum = ?')
     _reprocess_binaries_on_restart = 'UPDATE binary_data SET state = 0 WHERE state = 50'
     _add_iocs = 'UPDATE binary_data SET iocs = ? WHERE md5sum = ?'
@@ -266,8 +269,18 @@ class SqliteQueue(object):
         with self._get_conn() as conn:
             conn.execute(self._add_iocs, (ioc_string, md5sum))
 
-    def mark_as_analyzed(self, md5sum, succeeded, analysis_version, short_result, long_result, score=0, retry_at=None,
-                         link=None, iocs=None):
+    def mark_as_analyzed(self,
+                         md5sum,
+                         succeeded,
+                         analysis_version,
+                         short_result,
+                         long_result,
+                         title='',
+                         description='',
+                         score=0,
+                         retry_at=None,
+                         link=None,
+                         iocs=None):
         # print 'marking as analyzed: %s as %s: version %s, results: %s/%s, score: %d. retry? %s' % (
         #     md5sum, succeeded, analysis_version, short_result, long_result, score, retry_at
         # )
@@ -297,7 +310,7 @@ class SqliteQueue(object):
                 conn.execute("UPDATE binary_data SET retry_count=0 WHERE md5sum=?", (md5sum,))
             conn.execute(self._update_binary_state, (datetime.datetime.utcnow(), str(retry_at), str(short_result),
                                                      str(long_result), int(score), state, analysis_version,
-                                                     link, iocs, md5sum))
+                                                     link, iocs, title, description, md5sum))
 
     def binary_exists_in_database(self, md5sum):
         with self._get_conn() as conn:
@@ -430,7 +443,7 @@ class SqliteQueue(object):
 
 class SqliteFeedServer(threading.Thread):
     _get_feed_contents = 'SELECT * FROM binary_data'
-    _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score,link FROM binary_data WHERE state=100'
+    _get_analyzed_binaries = 'SELECT md5sum,last_modified,short_result,detailed_result,iocs,score,link,title,description FROM binary_data WHERE state=100'
 
     def __init__(self, dbname, port_number, feed_metadata, link_base_url, work_directory, cert_file=None, key_file=None,
                  listener_address='0.0.0.0'):
@@ -502,12 +515,17 @@ class SqliteFeedServer(threading.Thread):
                 else:
                     link = ''
 
+                title = binary[7]
+                description = binary[8]
+                score = binary[5]
+
                 feed_data['reports'].append({
                     'timestamp': int((dateutil.parser.parse(binary[1]) - epoch).total_seconds()),
                     'id': "Binary_%s" % binary[0],
                     'link': link,
-                    'title': binary[2],
-                    'score': binary[5],
+                    'title': title,
+                    'description': description,
+                    'score': score,
                     'iocs': {  # TODO: merge iocs from the database
                         'md5': [
                             binary[0],
