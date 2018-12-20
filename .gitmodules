@@ -1,0 +1,3 @@
+[submodule "vol/yaraconnector"]
+	path = vol/yaraconnector
+	url = https://github.com/carbonblack/cb-yara-integration
