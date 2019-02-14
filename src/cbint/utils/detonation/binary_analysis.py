@@ -337,10 +337,10 @@ class DeepAnalysisThread(BinaryConsumerThread):
                                                                            retry_in=60))
             return
 
-        if get_file_type(fp) is None:
-            self.save_unsuccessful_analysis(md5sum, AnalysisPermanentError(message="Not a binary",
-                                                                           extended_message="Not of type PE, MachO or ELF."))
-            return
+        #if get_file_type(fp) is None:
+        #    self.save_unsuccessful_analysis(md5sum, AnalysisPermanentError(message="Not a binary",
+        #                                                                   extended_message="Not of type PE, MachO or ELF."))
+        #    return
 
         try:
             res = self.provider.analyze_binary(md5sum, fp)
