@@ -7,7 +7,7 @@ import sys
 import time
 import atexit
 import logging
-import ConfigParser
+import configparser
 from logging.handlers import RotatingFileHandler
 from signal import SIGTERM
 import errno
@@ -101,7 +101,7 @@ class CbIntegrationDaemon(object):
             if pid > 0:
                 # exit first parent
                 sys.exit(0)
-        except OSError, e:
+        except OSError as e:
             sys.stderr.write("%s: fork #1 failed: %d (%s)\n" % (self.name, e.errno, e.strerror))
             sys.exit(1)
 
@@ -116,7 +116,7 @@ class CbIntegrationDaemon(object):
             if pid > 0:
                 # exit from second parent
                 sys.exit(0)
-        except OSError, e:
+        except OSError as e:
             sys.stderr.write("%s: fork #2 failed: %d (%s)\n" % (self.name, e.errno, e.strerror))
             sys.exit(1)
 
@@ -249,12 +249,12 @@ class CbIntegrationDaemon(object):
             while 1:
                 os.kill(pid, SIGTERM)
                 time.sleep(0.1)
-        except OSError, err:
+        except OSError as err:
             err = str(err)
             if err.find("No such process") > 0:
                 self.delpid()
             else:
-                print str(err)
+                print((str(err)))
                 sys.exit(1)
 
         self.on_stop()
@@ -303,7 +303,7 @@ class CbIntegrationDaemon(object):
             raise ConfigurationError("could not locate config file: %s" % configfile or "None")
 
         log.debug("parsing configuration")
-        self.cfg = ConfigParser.RawConfigParser()
+        self.cfg = configparser.RawConfigParser()
         self.cfg.read(configfile)
 
         # keeping self.options for backwards compatibility with older integrations

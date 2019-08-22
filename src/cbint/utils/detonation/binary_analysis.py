@@ -3,7 +3,7 @@ import datetime
 import traceback
 from time import sleep
 from zipfile import ZipFile
-from cStringIO import StringIO
+from io import StringIO
 import time
 import logging
 import dateutil.parser

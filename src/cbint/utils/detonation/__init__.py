@@ -412,9 +412,9 @@ class DetonationDaemon(CbIntegrationDaemon):
             while True:
                 sleep(1)
         except KeyboardInterrupt:
-            print 'stopping...'
+            print('stopping...')
             for t in consumer_threads + collectors:
                 t.stop()
             for t in consumer_threads + collectors:
                 t.join()
-                print 'stopped %s' % t
+                print('stopped %s' % t)

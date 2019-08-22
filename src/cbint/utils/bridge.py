@@ -47,8 +47,8 @@ def file_lock(lock_file):
         try:
             pid = int(file(lock_file).read())
             if pid_exists(pid):
-                print 'Only one instance can run at once. ' \
-                      'Script is locked with %s (pid: %s)' % (lock_file, pid)
+                print(('Only one instance can run at once. ' \
+                      'Script is locked with %s (pid: %s)' % (lock_file, pid)))
                 raise AlreadyRunningError('PID %s' % pid)
         except:
             pass
@@ -157,10 +157,10 @@ class CbIntegrationBridge(object):
     @staticmethod
     def print_reports(reports):
         for report in reports:
-            print 'report {0:s} (id {1:s} link {2:s}):'.format(report['title'], report['id'], report['link'])
+            print(('report {0:s} (id {1:s} link {2:s}):'.format(report['title'], report['id'], report['link'])))
             for indicator_type in report['iocs']:
                 for indicator_value in report['iocs'][indicator_type]:
-                    print indicator_type, indicator_value
+                    print((indicator_type, indicator_value))
 
     def integration_description(self):
         return ""

@@ -1,4 +1,4 @@
-import Queue
+import queue
 import os, sqlite3
 import re
 from time import sleep
@@ -19,7 +19,7 @@ import dateutil.parser
 epoch = datetime.datetime(1970, 1, 1)
 log = logging.getLogger(__name__)
 
-notification_queue = Queue.Queue(maxsize=10)
+notification_queue = queue.Queue(maxsize=10)
 
 
 class BinaryDatabaseArbiter(object):
@@ -67,7 +67,7 @@ class BinaryDatabaseController(threading.Thread):
 
     def register(self, notification_source, quick_scan=False):
         this_subscriber = self.subscriber_id
-        queue = Queue.Queue()
+        queue = queue.Queue()
         self.subscribers.append({"queue": queue, "notification_source": notification_source,
                                  "quick_scan": quick_scan})
         self.subscriber_id += 1
@@ -107,7 +107,7 @@ class BinaryDatabaseController(threading.Thread):
 
                 try:
                     subscriber_id = notification_queue.get(timeout=1)
-                except Queue.Empty:
+                except queue.Empty:
                     log.debug("Notification Queue empty, returning to top")
                     continue
                 except Exception:
@@ -343,7 +343,7 @@ class SqliteQueue(object):
                                           (datetime.datetime.utcnow(), self.num_days_before_rescan,
                                            datetime.datetime.utcnow(), self.max_retry_count))
                 try:
-                    results = cursor.next()
+                    results = next(cursor)
                     md5sum = results['md5sum']
                     keep_pooling = False
                 except StopIteration:
