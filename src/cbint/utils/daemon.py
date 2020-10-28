@@ -82,7 +82,7 @@ class CbIntegrationDaemon(object):
 
     def fatal(self, e):
         # log the Exception everywhere
-        msg = "%s (%s)" % (e.message, e.__class__.__name__)
+        msg = "%s" % (e)
         sys.stderr.write("%s: %s\n" % (self.name, msg))
         sys.stderr.flush()
         log.critical(msg)
