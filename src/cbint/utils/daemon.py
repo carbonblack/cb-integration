@@ -14,6 +14,7 @@ import errno
 import traceback
 import cbint.utils.filesystem
 from netifaces import interfaces, ifaddresses, AF_INET6, AF_INET, gateways
+from io import open as file
 
 log = logging.getLogger(__name__)
 
