@@ -6,7 +6,7 @@ def generate_icon(image_path):
     returns None when not found
     """
     try:
-        f = open(image_path)
+        f = open(image_path, 'rb')
         return base64.b64encode(f.read())
     except:
         return None
