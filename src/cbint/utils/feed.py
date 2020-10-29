@@ -7,7 +7,7 @@ def generate_icon(image_path):
     """
     try:
         f = open(image_path, 'rb')
-        return base64.b64encode(f.read())
+        return base64.b64encode(f.read()).decode()
     except:
         return None
 
